@@ -265,23 +265,42 @@ function productCategoryReview() {
 }
 
 function getCompaniesForType(type) {
-    if (type === "ins") {
-        // ביטוחי
-        return companies.filter(c =>
-            c.company_type === "ביטוחי" ||
-            c.company_type === "פיננסי + ביטוחי"
-        );
-    }
 
-    if (type === "fin") {
-        // פיננסי
-        return companies.filter(c =>
-            c.company_type === "פיננסי" ||
-            c.company_type === "פיננסי + ביטוחי"
-        );
-    }
+    return companies.filter(c => {
 
-    return [];
+        const companyType = Number(c.company_type); // 1 / 2 / 3
+        const isTransferOnly = Number(c.transfer_only) === 1;
+
+        // ❌ גוף מעביר בלבד – לא חברה מנהלת
+        if (isTransferOnly) {
+            return false;
+        }
+
+        // ❌ בלי סיווג תקין
+        if (![1, 2, 3].includes(companyType)) {
+            return false;
+        }
+
+        // כרטיס ביטוחי
+        if (type === "ins") {
+            return companyType === 2 || companyType === 3;
+        }
+
+        // כרטיס פיננסי / פנסיוני
+        if (type === "fin") {
+            return companyType === 1 || companyType === 3;
+        }
+
+        return false;
+    });
+}
+
+function getTransferCompanies() {
+    return companies.filter(c => {
+        const companyType = Number(c.company_type);
+        // גוף מעביר = פיננסי או משולב בלבד
+        return companyType === 1 || companyType === 3;
+    });
 }
 
 function chooseCategory() {
@@ -478,9 +497,10 @@ function insuranceOfferTab(cardId, headerContent, productName) {
                         <label>חברה מבטחת</label>
                         <select class="inp-company" onchange="updateHeader(this)">
                             <option value="" disabled selected>בחר...</option>
-                            ${companies.map(c => `
-                                <option value="${c.company_id}">${c.company_name}</option>
-                            `).join('')}
+                           ${getCompaniesForType("ins").map(c => `
+                            <option value="${c.company_id}">${c.company_name}</option>
+                                   `).join('')}
+
                         </select>
                     </div>
 
@@ -578,7 +598,7 @@ function financeOfferTab(cardId, headerContent) {
                         <label>חברה מנהלת</label>
                         <select class="inp-company" onchange="updateHeader(this)">
                             <option value="" disabled selected>בחר...</option>
-                            ${companies.map(c => `
+                             ${getCompaniesForType("fin").map(c => `
                                 <option value="${c.company_id}">${c.company_name}</option>
                             `).join('')}
                         </select>
@@ -826,7 +846,27 @@ function addEmpRow(cardId) {
 function addTransRow(cardId) {
     const tbody = document.querySelector(`#table_trans_${cardId} tbody`);
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td><select class="transferring_company"><option>בחר גוף...</option>${companies.map(c => `<option>${c.company_name}</option>`).join('')}</select></td><td><div class="input-group"><span class="currency-symbol">₪</span><input type="number" class="fin_input_with_corrency  input-with-currency"></div></td><td class="btn-del" onclick="deleteRow(this)">×</td>`;
+
+    tr.innerHTML = `
+        <td>
+            <select class="transferring_company">
+                <option value="" disabled selected>בחר גוף...</option>
+                ${getTransferCompanies().map(c => `
+                    <option>${c.company_name}</option>
+                `).join('')}
+            </select>
+        </td>
+
+        <td>
+            <div class="input-group">
+                <span class="currency-symbol">₪</span>
+                <input type="number" class="fin_input_with_corrency input-with-currency">
+            </div>
+        </td>
+
+        <td class="btn-del" onclick="deleteRow(this)">×</td>
+    `;
+
     tbody.appendChild(tr);
 }
 
@@ -1513,7 +1553,10 @@ async function saveFinancialProducts(account_id, btn) {
 
         // 2️⃣ מוצר פיננסי
         const productName = card.querySelector(".hb-item")?.textContent?.trim();
-        const product = getProductByName("פיננסים", productName);
+        const product =
+            getProductByName("פיננסים", productName) ||
+            getProductByName("פנסיוני", productName);
+
 
         if (!product) {
             throw new Error("לא נמצא מוצר פיננסי");
@@ -1713,13 +1756,23 @@ window.onload = async function () {
         return;
     }
 
-    console.log("ACCOUNT ID:", account_id);
-
     await get_account(account_id);
     await loadFamilyMembers(account_id);
 
     categories = await getRequest("/get_products");
     companies = (await getRequest("/get_companies")).companies;
+
+    // 🔍 לוג אמת – גוף מעביר בלבד
+    console.group("🔎 Companies – transfer_only check");
+    console.table(
+        companies.map(c => ({
+            name: c.company_name,
+            company_type: c.company_type,
+            transfer_only: c.transfer_only,
+            transfer_only_normalized: (c.transfer_only || "").toString().trim()
+        }))
+    );
+    console.groupEnd();
 
     displayCategories(categories);
     displayProducts(categories);

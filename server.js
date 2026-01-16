@@ -67,9 +67,6 @@ app.get("/health-check", async (req, res) => {
     });
 });
 
-// -------------------------------------------------- //
-//? Get Primary Insured
-
 //? Add New Family Member
 app.post("/add-family-member", async (req, res) => {
     try {
@@ -102,6 +99,8 @@ app.get("/get_account/:id", async (req, res) => {
 app.get("/get_products", async (req, res) => {
     const ins_products = [];
     const fin_products = [];
+    const pension_products = [];
+
 
     const product_response = await getRequest("/record/product");
 
@@ -113,7 +112,8 @@ app.get("/get_products", async (req, res) => {
                     id: product.productid
                 });
             }
-        } else if (product.categoryname === "פיננסי") {
+        }
+        else if (product.categoryname === "פיננסי") {
             if (product.name != null) {
                 fin_products.push({
                     name: product.name,
@@ -121,7 +121,16 @@ app.get("/get_products", async (req, res) => {
                 });
             }
         }
+        else if (product.categoryname === "פנסיוני") {
+            if (product.name != null) {
+                pension_products.push({
+                    name: product.name,
+                    id: product.productid
+                });
+            }
+        }
     });
+
 
     res.json({
         "ביטוח": {
@@ -133,8 +142,14 @@ app.get("/get_products", async (req, res) => {
             id: "finance",
             type: "fin",
             products: fin_products
+        },
+        "פנסיוני": {
+            id: "pension",
+            type: "fin", // 👈 חשוב!
+            products: pension_products
         }
     });
+
 });
 
 app.get("/get_companies", async (req, res) => {
@@ -147,12 +162,10 @@ app.get("/get_companies", async (req, res) => {
             companies.push({
                 company_id: company.customobject1016id,
                 company_name: company.name,
-                company_type: company.pcfsystemfield100 || null
-                // ערכים צפויים:
-                // "ביטוחי"
-                // "פיננסי"
-                // "פיננסי + ביטוחי"
+                company_type: company.pcfsystemfield100 || null,
+                transfer_only: company.pcfsystemfield101 || null // "כן" / "לא"
             });
+
         });
 
         res.json({ companies });
@@ -162,7 +175,6 @@ app.get("/get_companies", async (req, res) => {
         res.status(500).json({ error: "failed to fetch companies" });
     }
 });
-
 
 app.post("/get_familyMembers", async (req, res) => {
     const { account_id } = req.body;
@@ -212,7 +224,6 @@ app.post("/get_familyMembers", async (req, res) => {
         return res.status(500).json({ error: "server error" });
     }
 });
-
 // -------------------------------------------------- //
 //? Add New Offers
 app.post("/create/insurance", async (req, res) => {
