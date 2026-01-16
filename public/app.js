@@ -484,102 +484,114 @@ function insuranceOfferTab(cardId, headerContent, productName) {
           `;
 
     const html = `
-        <div class="card theme-ins open" id="${cardId}" data-type="ins">
-            <div class="card-header" onclick="toggleCard('${cardId}')">
-                ${headerContent}
+<div class="card theme-ins open" id="${cardId}" data-type="ins">
+    <div class="card-header" onclick="toggleCard('${cardId}')">
+        ${headerContent}
+    </div>
+
+    <div class="card-body">
+        <div class="form-row">
+
+            <!-- חברה מבטחת -->
+            <div class="form-group">
+                <label>חברה מבטחת</label>
+                <select class="inp-company" onchange="updateHeader(this)">
+                    <option value="" disabled selected>בחר...</option>
+                    ${getCompaniesForType("ins").map(c => `
+                    <option value="${c.company_id}">${c.company_name}</option>
+                    `).join('')}
+
+                </select>
             </div>
 
-            <div class="card-body">
-                <div class="form-row">
+            <!-- מבוטח ראשי -->
+            <div class="form-group">
+                <label>מבוטח ראשי</label>
+                <select class="inp-insured" onchange="updateHeader(this); syncPrimaryInsuredWithTable(this)">
+                    <option value="" disabled selected>בחר...</option>
+                    ${familyMembers.map(m => `
+                    <option value="${m.name}">${m.name}</option>
+                    `).join('')}
+                </select>
+            </div>
+            <!-- משעבד (ריסק משכנתא / משועבד) -->
+            <div class="form-group policy-pledger-wrapper" style="display:none;">
+                <label>משעבד</label>
+                <select class="inp-policy-pledger">
+                    <option value="" disabled selected>בחר משעבד</option>
+                    ${getCompaniesForType("ins").map(c => `
+                    <option value="${c.company_id}">
+                        ${c.company_name}
+                    </option>
+                    `).join('')}
+                </select>
+            </div>
 
-                    <!-- חברה מבטחת -->
-                    <div class="form-group">
-                        <label>חברה מבטחת</label>
-                        <select class="inp-company" onchange="updateHeader(this)">
-                            <option value="" disabled selected>בחר...</option>
-                           ${getCompaniesForType("ins").map(c => `
-                            <option value="${c.company_id}">${c.company_name}</option>
-                                   `).join('')}
+            <!-- סוג פעולה -->
+            <div class="form-group">
+                <label>סוג פעולה</label>
+                <select class="insurance_action_type">
+                    <option>מכירה</option>
+                    <option>מינוי סוכן</option>
+                </select>
+            </div>
 
-                        </select>
-                    </div>
+            <!-- סטטוס פוליסה -->
+            <div class="form-group">
+                <label>סטטוס</label>
+                <select class="insurance_operation_status">
+                    <option value="נשלח ליצרן" selected>נשלח ליצרן</option>
+                    <option value="נשלח לעוצמה">נשלח לעוצמה</option>
+                </select>
+            </div>
 
-                    <!-- מבוטח ראשי -->
-                    <div class="form-group">
-                        <label>מבוטח ראשי</label>
-                        <select class="inp-insured" onchange="updateHeader(this); syncPrimaryInsuredWithTable(this)">
-                            <option value="" disabled selected>בחר...</option>
-                            ${familyMembers.map(m => `
-                                <option value="${m.name}">${m.name}</option>
-                            `).join('')}
-                        </select>
-                    </div>
-
-                    <!-- סוג פעולה -->
-                    <div class="form-group">
-                        <label>סוג פעולה</label>
-                        <select class="insurance_action_type">
-                            <option>מכירה</option>
-                            <option>מינוי סוכן</option>
-                        </select>
-                    </div>
-
-                    <!-- סטטוס פוליסה -->
-                    <div class="form-group">
-                        <label>סטטוס</label>
-                        <select class="insurance_operation_status">
-                            <option value="נשלח ליצרן" selected>נשלח ליצרן</option>
-                            <option value="נשלח לעוצמה">נשלח לעוצמה</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label>הנחה (אוטומטי)</label>
-                        <input type="text" disabled placeholder="-" style="background:#f1f5f9;">
-                    </div>
-                </div>
-
-                <div style="border-top: 1px dashed #cbd5e1; padding-top: 10px;">
-                    <div class="col-title">מבוטחים בפוליסה</div>
-
-                    <table id="table_ins_${cardId}">
-                        <thead>
-                            <tr>
-                                <th style="width:30px">✓</th>
-                                <th>שם מבוטח</th>
-                                <th>קשר משפחתי</th>
-                                ${premiumAndAmountHeader}
-                                ${discountHeader}
-                            </tr>
-                        </thead>
-
-                        <tbody>
-                            ${familyMembers.map(m => `
-                                <tr data-name="${m.name}">
-                                    <td style="text-align:center">
-                                        <input type="checkbox" onchange="toggleRow(this)">
-                                    </td>
-
-                                    <td>
-                                        <input type="text" class="name" value="${m.name}" readonly>
-                                    </td>
-
-                                    <td>
-                                        <select class="role" disabled>
-                                            <option>${m.relation}</option>
-                                        </select>
-                                    </td>
-
-                                    ${premiumAndAmountCells}
-                                    ${discountCells}
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
+            <div class="form-group">
+                <label>הנחה (אוטומטי)</label>
+                <input type="text" disabled placeholder="-" style="background:#f1f5f9;">
             </div>
         </div>
-    `;
+
+        <div style="border-top: 1px dashed #cbd5e1; padding-top: 10px;">
+            <div class="col-title">מבוטחים בפוליסה</div>
+
+            <table id="table_ins_${cardId}">
+                <thead>
+                    <tr>
+                        <th style="width:30px">✓</th>
+                        <th>שם מבוטח</th>
+                        <th>קשר משפחתי</th>
+                        ${premiumAndAmountHeader}
+                        ${discountHeader}
+                    </tr>
+                </thead>
+
+                <tbody>
+                    ${familyMembers.map(m => `
+                    <tr data-name="${m.name}">
+                        <td style="text-align:center">
+                            <input type="checkbox" onchange="toggleRow(this)">
+                        </td>
+
+                        <td>
+                            <input type="text" class="name" value="${m.name}" readonly>
+                        </td>
+
+                        <td>
+                            <select class="role" disabled>
+                                <option>${m.relation}</option>
+                            </select>
+                        </td>
+
+                        ${premiumAndAmountCells}
+                        ${discountCells}
+                    </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+`;
 
     return html;
 }
@@ -755,6 +767,18 @@ function addNewOffer() {
             depositWrapper.style.display = "block";
         }
     }
+    if (type === 'ins') {
+        const card = document.getElementById(cardId);
+        const pledgerWrapper = card.querySelector('.policy-pledger-wrapper');
+
+        if (
+            pledgerWrapper &&
+            (productName === 'ריסק משכנתא' || productName === 'ריסק משועבד')
+        ) {
+            pledgerWrapper.style.display = 'block';
+        }
+    }
+
 
     selector.value = "";
 }
@@ -1421,6 +1445,19 @@ async function saveInsurancePolicies(account_id, btn) {
             throw new Error("חסר מבוטח ראשי בפוליסה");
         }
 
+        // 🔒 משעבד – חובה בריסק משכנתא / משועבד
+        if (
+            product.name === 'ריסק משכנתא' ||
+            product.name === 'ריסק משועבד'
+        ) {
+            const pledgerSelect = card.querySelector('.inp-policy-pledger');
+
+            if (!pledgerSelect || !pledgerSelect.value) {
+                throw new Error('חובה לבחור משעבד בפוליסה');
+            }
+        }
+
+
         const primaryName = getPrimaryInsuredName(card);
         const primaryMember = familyMembers.find(
             m => (m.name || "").trim() === (primaryName || "").trim()
@@ -1482,6 +1519,19 @@ async function saveInsurancePolicies(account_id, btn) {
             // 🆔 ת.ז מבוטח ראשי
             pcfsystemfield121: primaryIdNumber
         };
+
+        // 🏦 משעבד (ריסק משכנתא / משועבד)
+        if (
+            product.name === 'ריסק משכנתא' ||
+            product.name === 'ריסק משועבד'
+        ) {
+            const pledgerId = card.querySelector('.inp-policy-pledger')?.value;
+
+            if (pledgerId) {
+                policyPayload.pcfsystemfield122 = pledgerId;
+            }
+        }
+
 
 
         if (mainDiscount !== null) {
@@ -1656,6 +1706,20 @@ function validateAllBeforeSave() {
             if (!primaryName) {
                 throw new Error("חובה לבחור מבוטח ראשי בכל פוליסה");
             }
+
+            const product = getInsuranceProductFromCard(card);
+
+            if (
+                product &&
+                (product.name === 'ריסק משכנתא' || product.name === 'ריסק משועבד')
+            ) {
+                const pledgerValue = card.querySelector('.inp-policy-pledger')?.value;
+
+                if (!pledgerValue) {
+                    throw new Error("חובה לבחור משעבד בפוליסת ריסק משכנתא / משועבד");
+                }
+            }
+
 
             const memberExists = familyMembers.some(m => (m.name || "").trim() === primaryName);
             if (!memberExists) {
