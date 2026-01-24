@@ -670,8 +670,8 @@ function financeOfferTab(cardId, headerContent) {
                             <thead>
                                 <tr>
                                     <th style="width:90px">ח.פ</th>
-                                    <th>שם מעסיק</th>
-                                    <th style="width:70px">הפקדה</th>
+                                    <th style="width:45%">שם מעסיק</th>
+                                    <th style="width:120px">הפקדה</th>
                                     <th style="width:30px"></th>
                                 </tr>
                             </thead>
@@ -689,8 +689,8 @@ function financeOfferTab(cardId, headerContent) {
                         <table id="table_trans_${cardId}">
                             <thead>
                                 <tr>
-                                    <th>גוף מעביר</th>
-                                    <th style="width:80px">ניוד צפוי</th>
+                                    <th style="width:60%">גוף מעביר</th>
+                                    <th style="width:130px">ניוד צפוי</th>
                                     <th style="width:30px"></th>
                                 </tr>
                             </thead>
