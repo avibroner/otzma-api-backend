@@ -44,19 +44,28 @@ async function postRequest(path, body) {
 
 async function getRequest(path) {
     try {
-        const response = await fetch(`https://api.fireberry.com/api${path}`, {
+        const isMetadata = path.startsWith("/metadata");
+
+        const baseUrl = isMetadata
+            ? "https://api.fireberry.com"
+            : "https://api.fireberry.com/api";
+
+        // metadata עובד כמו בדוקומנטציה: tokenid ב-query
+        const url = `${baseUrl}${path}${path.includes("?") ? "&" : "?"}tokenid=${crm_token}`;
+
+        const response = await fetch(url, {
             method: "GET",
             headers: {
-                "Content-Type": "application/json",
-                'Access-Control-Allow-Origin': '*',
-                "tokenid": crm_token
+                "accept": "application/json",
+                "Content-Type": "application/json"
             }
         });
-        console.log(response)
-        return await response.json()
+
+        return await response.json();
+
     } catch (error) {
-        console.log(error)
-        console.error("Error: " + error)
+        console.error("GET error:", error);
+        throw error;
     }
 }
 
@@ -173,6 +182,34 @@ app.get("/get_companies", async (req, res) => {
     } catch (err) {
         console.error("❌ get_companies error:", err);
         res.status(500).json({ error: "failed to fetch companies" });
+    }
+});
+
+// -------------------------------------------------- //
+// Get Policy Mortgage Picklist (pcfsystemfield123)
+
+app.get("/get_policy_mortgage_options", async (req, res) => {
+    try {
+        const fbResponse = await getRequest(
+            "/metadata/records/1022/fields/pcfsystemfield123/values"
+        );
+
+        const values = fbResponse?.data?.values;
+
+        if (!Array.isArray(values)) {
+            return res.json({ options: [] });
+        }
+
+        return res.json({
+            options: values.map(v => ({
+                value: v.value,
+                label: v.name
+            }))
+        });
+
+    } catch (err) {
+        console.error("get_policy_mortgage_options error:", err);
+        return res.status(500).json({ error: "failed to fetch mortgage options" });
     }
 });
 
