@@ -76,8 +76,8 @@ async function get_account(account_id) {
         name: account.accountname,
 
         // 🎯 שדות שביקשת
-        ownerId: account.ownerid || null,
-        financialPlannerId: account.pcfsystemfield274 || null
+        ownerId: account.pcfsystemfield274 || null,
+        financialPlannerId: account.ownerid || null
     };
 
     // הצגה ב־UI
@@ -775,7 +775,29 @@ function addNewOffer() {
 
     container.insertAdjacentHTML('beforeend', html);
 
+    // =========================
     // 🔥 טיפול ייעודי בפיננסי
+    // =========================
+    if (type === 'fin') {
+        // שורות ברירת מחדל
+        addEmpRow(cardId);
+        addTransRow(cardId);
+
+        // דמי ניהול מהפקדה – רק בפנסיה
+        const card = document.getElementById(cardId);
+        const depositWrapper = card.querySelector('.deposit-fee-wrapper');
+
+        if (
+            depositWrapper &&
+            (productName === "פנסיה מקיפה" || productName === "פנסיה משלימה")
+        ) {
+            depositWrapper.style.display = "block";
+        }
+    }
+
+    // =========================
+    // 🔥 טיפול ייעודי בביטוח
+    // =========================
     if (type === 'ins') {
         const card = document.getElementById(cardId);
         const pledgerWrapper = card.querySelector('.policy-pledger-wrapper');
@@ -789,14 +811,13 @@ function addNewOffer() {
             pledgerWrapper.style.display = isMortgageRisk ? 'block' : 'none';
         }
 
-        // 🧹 אם לא רלוונטי – מנקים ערך
+        // ניקוי ערך אם לא רלוונטי
         if (!isMortgageRisk && pledgerSelect) {
             pledgerSelect.value = '';
         }
     }
 
-
-
+    // איפוס בחירה
     selector.value = "";
 }
 
