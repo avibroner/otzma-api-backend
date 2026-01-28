@@ -1484,148 +1484,137 @@ async function saveInsurancePolicies(account_id, btn) {
         }
 
         // 🔒 משעבד – חובה בריסק משכנתא / משועבד
+        let mortgageValue = null;
         if (
             product.name === 'ריסק משכנתא' ||
             product.name === 'ריסק משועבד'
         ) {
-            const mortgageValue =
-                card.querySelector(".policy_mortgage")?.value;
+            mortgageValue = card.querySelector(".policy_mortgage")?.value;
 
             if (!mortgageValue) {
                 throw new Error("חובה לבחור משעבד בכל פוליסה");
             }
+        }
 
+        // 🆔 ת.ז מבוטח ראשי
+        const primaryName = getPrimaryInsuredName(card);
+        const primaryMember = familyMembers.find(
+            m => (m.name || "").trim() === (primaryName || "").trim()
+        );
 
-            const primaryName = getPrimaryInsuredName(card);
-            const primaryMember = familyMembers.find(
-                m => (m.name || "").trim() === (primaryName || "").trim()
-            );
+        if (!primaryMember || !primaryMember.id) {
+            throw new Error("לא נמצאה תעודת זהות למבוטח הראשי");
+        }
 
-            if (!primaryMember || !primaryMember.id) {
-                throw new Error("לא נמצאה תעודת זהות למבוטח הראשי");
+        const primaryIdNumber = primaryMember.id;
+
+        // 4️⃣ סוג פעולה
+        const actionTypeText = getInsuranceActionTypeFromCard(card);
+        const actionTypeId = getActionTypeId(actionTypeText);
+        if (!actionTypeId) {
+            throw new Error("סוג פעולה לא חוקי בפוליסה");
+        }
+
+        // 5️⃣ סטטוס פוליסה
+        const statusText =
+            card.querySelector(".insurance_operation_status")?.value;
+
+        const statusMap = {
+            "נשלח לעוצמה": 1,
+            "נשלח ליצרן": 3
+        };
+
+        const operationStatus = statusMap[statusText];
+        if (!operationStatus) {
+            throw new Error("סטטוס פוליסה לא חוקי");
+        }
+
+        // 6️⃣ מבוטחים בפוליסה
+        const insuredList = collectPolicyInsured(card);
+
+        // 7️⃣ הנחת מבוטח ראשי – אופציונלית
+        const mainDiscountRaw = getMainInsuredPolicyDiscount(card);
+        const mainDiscount =
+            mainDiscountRaw !== null &&
+                mainDiscountRaw !== undefined &&
+                mainDiscountRaw.toString().trim() !== ""
+                ? mainDiscountRaw.toString().trim()
+                : null;
+
+        // 8️⃣ יצירת פוליסה
+        const policyPayload = {
+            pcfclient: account_id,
+            pcfmaininsured: primaryUID,
+            pcfcompany: companyId,
+            pcfproduct: product.id,
+            pcfsaleoragent: actionTypeId,
+            pcfoperationstatus: operationStatus,
+
+            // 🔁 העתקה מהלקוח
+            ownerid: ACCOUNT.ownerId,
+            pcfsystemfield120: ACCOUNT.financialPlannerId,
+
+            // 🆔 ת.ז מבוטח ראשי
+            pcfsystemfield121: primaryIdNumber
+        };
+
+        // 🏦 משעבד (ריסק משכנתא / משועבד)
+        if (mortgageValue) {
+            policyPayload.pcfsystemfield123 = Number(mortgageValue);
+        }
+
+        if (mainDiscount !== null) {
+            policyPayload.pcfdiscountmaininsured = mainDiscount;
+        }
+
+        const policyResponse = await postRequest("/create/insurance", policyPayload);
+        const policyId = policyResponse?.data?.Record?.customobject1022id;
+
+        if (!policyId) {
+            throw new Error("שגיאה ביצירת פוליסה ב-CRM");
+        }
+
+        // 9️⃣ מבוטחים בפוליסה
+        const healthProduct = getProductByName("ביטוח", "בריאות");
+        const diseaseProduct = getProductByName("ביטוח", "מחלות");
+
+        for (let insured of insuredList) {
+
+            let productIdToUse = product.id;
+
+            if (insured.splitProductType === "health") {
+                productIdToUse = healthProduct?.id;
             }
 
-            const primaryIdNumber = primaryMember.id; // ✅ תעודת זהות
-
-
-            // 4️⃣ סוג פעולה
-            const actionTypeText = getInsuranceActionTypeFromCard(card);
-            const actionTypeId = getActionTypeId(actionTypeText);
-            if (!actionTypeId) {
-                throw new Error("סוג פעולה לא חוקי בפוליסה");
+            if (insured.splitProductType === "disease") {
+                productIdToUse = diseaseProduct?.id;
             }
 
-            // 5️⃣ סטטוס פוליסה
-            const statusText =
-                card.querySelector(".insurance_operation_status")?.value;
-
-            const statusMap = {
-                "נשלח לעוצמה": 1,
-                "נשלח ליצרן": 3
-            };
-
-            const operationStatus = statusMap[statusText];
-            if (!operationStatus) {
-                throw new Error("סטטוס פוליסה לא חוקי");
-            }
-
-            // 6️⃣ מבוטחים בפוליסה
-            const insuredList = collectPolicyInsured(card);
-
-            // 7️⃣ הנחת מבוטח ראשי – אופציונלית
-            const mainDiscountRaw = getMainInsuredPolicyDiscount(card);
-            const mainDiscount =
-                mainDiscountRaw !== null &&
-                    mainDiscountRaw !== undefined &&
-                    mainDiscountRaw.toString().trim() !== ""
-                    ? mainDiscountRaw.toString().trim()
-                    : null;
-
-            // 8️⃣ יצירת פוליסה
-            const policyPayload = {
-                pcfclient: account_id,
-                pcfmaininsured: primaryUID,
-                pcfcompany: companyId,
-                pcfproduct: product.id,
-                pcfsaleoragent: actionTypeId,
-                pcfoperationstatus: operationStatus,
+            const insuredPayload = {
+                pcfsystemfield101: policyId,
+                pcfsystemfield102: insured.contactId,
+                pcfsystemfield105: insured.premium,
+                pcfsystemfield111: insured.insuranceAmount,
+                pcfsystemfield109: productIdToUse,
+                pcfsystemfield110: companyId,
 
                 // 🔁 העתקה מהלקוח
                 ownerid: ACCOUNT.ownerId,
-                pcfsystemfield120: ACCOUNT.financialPlannerId,
-
-                // 🆔 ת.ז מבוטח ראשי
-                pcfsystemfield121: primaryIdNumber
+                pcfsystemfield112: ACCOUNT.financialPlannerId
             };
 
-            // 🏦 משעבד (ריסק משכנתא / משועבד)
             if (
-                product.name === 'ריסק משכנתא' ||
-                product.name === 'ריסק משועבד'
+                insured.discount !== null &&
+                insured.discount !== undefined &&
+                insured.discount !== ""
             ) {
-                const mortgageValue =
-                    card.querySelector(".policy_mortgage")?.value;
+                insuredPayload.pcfsystemfield107 = insured.discount;
+            }
 
-                policyPayload.pcfsystemfield123 = Number(mortgageValue);
+            const insuredRes = await postRequest("/create/policy-insured", insuredPayload);
 
-
-
-
-                if (mainDiscount !== null) {
-                    policyPayload.pcfdiscountmaininsured = mainDiscount;
-                }
-
-                const policyResponse = await postRequest("/create/insurance", policyPayload);
-                const policyId = policyResponse?.data?.Record?.customobject1022id;
-
-                if (!policyId) {
-                    throw new Error("שגיאה ביצירת פוליסה ב-CRM");
-                }
-
-                // 9️⃣ מבוטחים בפוליסה
-                const healthProduct = getProductByName("ביטוח", "בריאות");
-                const diseaseProduct = getProductByName("ביטוח", "מחלות");
-
-                for (let insured of insuredList) {
-
-                    let productIdToUse = product.id;
-
-                    if (insured.splitProductType === "health") {
-                        productIdToUse = healthProduct?.id;
-                    }
-
-                    if (insured.splitProductType === "disease") {
-                        productIdToUse = diseaseProduct?.id;
-                    }
-
-                    const insuredPayload = {
-                        pcfsystemfield101: policyId,
-                        pcfsystemfield102: insured.contactId,
-                        pcfsystemfield105: insured.premium,
-                        pcfsystemfield111: insured.insuranceAmount,
-                        pcfsystemfield109: productIdToUse,
-                        pcfsystemfield110: companyId,
-
-                        // 🔁 העתקה מהלקוח
-                        ownerid: ACCOUNT.ownerId,
-                        pcfsystemfield112: ACCOUNT.financialPlannerId
-                    };
-
-
-                    if (
-                        insured.discount !== null &&
-                        insured.discount !== undefined &&
-                        insured.discount !== ""
-                    ) {
-                        insuredPayload.pcfsystemfield107 = insured.discount;
-                    }
-
-                    const insuredRes = await postRequest("/create/policy-insured", insuredPayload);
-
-                    if (!insuredRes?.data?.Record) {
-                        throw new Error("שגיאה ביצירת מבוטח בפוליסה");
-                    }
-                }
+            if (!insuredRes?.data?.Record) {
+                throw new Error("שגיאה ביצירת מבוטח בפוליסה");
             }
         }
     }
