@@ -967,7 +967,7 @@ function collectPolicyInsured(card) {
         const checkbox = row.querySelector('input[type="checkbox"]');
         const name = row.querySelector('.name')?.value?.trim();
 
-        const member = familyMembers.find(m => m.name === name);
+        const member = familyMembers.find(m => (m.name || "").trim() === name);
         if (!member) continue;
 
         const isPrimary = member.uid === primaryUID;
@@ -1161,7 +1161,7 @@ function collectFinanceData(card) {
     }
 
     // --- מיפוי מבוטח (בלי דרישת CRM ID) ---
-    const member = familyMembers.find(m => m.name === insuredName);
+    const member = familyMembers.find(m => (m.name || "").trim() === (insuredName || "").trim());
     if (!member) {
         throw new Error(`המבוטח "${insuredName}" לא נמצא ברשימת בני המשפחה`);
     }
@@ -1463,6 +1463,9 @@ function getInsuranceActionTypeFromCard(card) {
 async function saveInsurancePolicies(account_id, btn) {
     const insuranceCards = document.querySelectorAll('.card[data-type="ins"]');
 
+    // נייצר את תאריך המכירה של היום
+    const todayDate = new Date().toISOString();
+
     for (let card of insuranceCards) {
 
         // 1️⃣ מוצר
@@ -1555,7 +1558,10 @@ async function saveInsurancePolicies(account_id, btn) {
             pcfsystemfield120: ACCOUNT.financialPlannerId,
 
             // 🆔 ת.ז מבוטח ראשי
-            pcfsystemfield121: primaryIdNumber
+            pcfsystemfield121: primaryIdNumber,
+
+            // 👇 הוספת תאריך המכירה לפוליסה
+            pcfsystemfield104: todayDate
         };
 
         // 🏦 משעבד (ריסק משכנתא / משועבד)
@@ -1624,6 +1630,9 @@ async function saveFinancialProducts(account_id, btn) {
 
     const financeCards = document.querySelectorAll('.card[data-type="fin"]');
 
+    // נייצר את תאריך המכירה של היום
+    const todayDate = new Date().toISOString();
+
     for (let card of financeCards) {
 
         // 1️⃣ נתונים בסיסיים מהכרטיס (כולל ולידציות)
@@ -1653,7 +1662,10 @@ async function saveFinancialProducts(account_id, btn) {
 
             // 🔁 העתקה מהלקוח
             ownerid: ACCOUNT.ownerId,
-            pcfsystemfield100: ACCOUNT.financialPlannerId
+            pcfsystemfield100: ACCOUNT.financialPlannerId,
+
+            // 👇 הוספת תאריך מכירה לפיננסי הראשי
+            pcfsystemfield140: todayDate
         };
 
 
@@ -1683,7 +1695,10 @@ async function saveFinancialProducts(account_id, btn) {
 
                 // 🔁 העתקה מהלקוח
                 ownerid: ACCOUNT.ownerId,
-                pcfsystemfield102: ACCOUNT.financialPlannerId
+                pcfsystemfield102: ACCOUNT.financialPlannerId,
+
+                // 👇 הוספת תאריך מכירה לגוף מעביר
+                pcfsystemfield109: todayDate
             });
 
         }
@@ -1701,7 +1716,10 @@ async function saveFinancialProducts(account_id, btn) {
 
                 // 🔁 העתקה מהלקוח
                 ownerid: ACCOUNT.ownerId,
-                pcfsystemfield102: ACCOUNT.financialPlannerId
+                pcfsystemfield102: ACCOUNT.financialPlannerId,
+
+                // 👇 הוספת תאריך מכירה למעסיק בקופה
+                pcfsystemfield107: todayDate
             });
 
         }
