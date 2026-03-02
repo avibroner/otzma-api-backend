@@ -245,7 +245,11 @@ function displayProducts(categories) {
         optgroup.className = "productSelectCategory";
         optgroup.id = category;
 
-        const products = categories[category].products;
+        // העתקת מערך המוצרים ומיון אלפביתי בעברית
+        const products = [...categories[category].products].sort((a, b) => 
+            a.name.localeCompare(b.name, 'he')
+        );
+
         products.forEach(product => {
             const option = document.createElement("option");
             option.textContent = product.name;
@@ -1535,6 +1539,13 @@ async function saveInsurancePolicies(account_id, btn) {
         // 6️⃣ מבוטחים בפוליסה
         const insuredList = collectPolicyInsured(card);
 
+        // שליפת סכום הביטוח של המבוטח הראשי מהטבלה
+        let mainInsuredAmount = 0;
+        const mainInsuredData = insuredList.find(ins => ins.contactId === primaryUID);
+        if (mainInsuredData) {
+            mainInsuredAmount = mainInsuredData.insuranceAmount;
+        }
+
         // 7️⃣ הנחת מבוטח ראשי – אופציונלית
         const mainDiscountRaw = getMainInsuredPolicyDiscount(card);
         const mainDiscount =
@@ -1561,7 +1572,10 @@ async function saveInsurancePolicies(account_id, btn) {
             pcfsystemfield121: primaryIdNumber,
 
             // 👇 הוספת תאריך המכירה לפוליסה
-            pcfsystemfield104: todayDate
+            pcfsystemfield104: todayDate,
+
+            //סכום ביטוח מבוטח ראשי בפוליסה
+            pcfsystemfield114: mainInsuredAmount
         };
 
         // 🏦 משעבד (ריסק משכנתא / משועבד)
@@ -1606,7 +1620,10 @@ async function saveInsurancePolicies(account_id, btn) {
 
                 // 🔁 העתקה מהלקוח
                 ownerid: ACCOUNT.ownerId,
-                pcfsystemfield112: ACCOUNT.financialPlannerId
+                pcfsystemfield112: ACCOUNT.financialPlannerId,
+
+                //תאריך מכירה למבוטח בפוליסה
+                pcfsystemfield114: todayDate
             };
 
             if (
