@@ -52,6 +52,7 @@ router.post("/api/process-excel", upload.single("file"), async (req, res) => {
     try {
         const file = req.file;
         const uploaderName = req.body.uploaderName || "לא ידוע";
+        const ownerId = req.body.ownerId || "";
 
         if (!file) {
             send({ step: "error", message: "לא נבחר קובץ" });
@@ -109,7 +110,7 @@ router.post("/api/process-excel", upload.single("file"), async (req, res) => {
             });
 
             try {
-                const result = await createInsuranceRecord(rows[i], person, fieldOptions, bufferMapping);
+                const result = await createInsuranceRecord(rows[i], person, fieldOptions, bufferMapping, ownerId);
                 createdCount++;
                 if (result.warning) {
                     warnings.push(`שורה ${i + 1}: ${result.warning}`);
