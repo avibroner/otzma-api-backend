@@ -12,6 +12,8 @@ router.get("/transfer", (req, res) => {
 router.post("/transfer/execute", async (req, res) => {
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     res.setHeader("Transfer-Encoding", "chunked");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.setHeader("Cache-Control", "no-cache");
 
     const send = (update) => {
         res.write(JSON.stringify(update) + "\n");

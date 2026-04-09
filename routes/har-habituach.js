@@ -44,6 +44,8 @@ router.get("/api/users", async (req, res) => {
 router.post("/api/process-excel", upload.single("file"), async (req, res) => {
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     res.setHeader("Transfer-Encoding", "chunked");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.setHeader("Cache-Control", "no-cache");
 
     const send = (update) => {
         res.write(JSON.stringify(update) + "\n");
