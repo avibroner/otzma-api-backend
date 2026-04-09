@@ -62,7 +62,7 @@ function appendLog(entry) {
 // Middleware: check Fireberry referer for upload pages
 function requireFireberry(req, res, next) {
     const referer = req.headers.referer || req.headers.origin || "";
-    if (referer.includes("fireberry.com") || referer.includes("powerlink.co.il") || referer.includes("localhost")) {
+    if (referer.includes("fireberry.com") || referer.includes("powerlink.co.il") || referer.includes("otzma-ins.co.il") || referer.includes("localhost")) {
         return next();
     }
     return res.status(403).json({ error: "גישה מותרת רק מתוך פיירברי" });
