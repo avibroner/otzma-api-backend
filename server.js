@@ -12,6 +12,15 @@ app.use(cors({ origin: "*" }));
 // Health check
 app.get("/health", (req, res) => res.json({ status: "ok" }));
 
+// Fireberry referer check middleware
+function requireFireberry(req, res, next) {
+    const referer = req.headers.referer || req.headers.origin || "";
+    if (referer.includes("fireberry.com") || referer.includes("powerlink.co.il") || referer.includes("otzma-ins.co.il") || referer.includes("localhost")) {
+        return next();
+    }
+    return res.status(403).json({ error: "גישה מותרת רק מתוך פיירברי" });
+}
+
 // --- Routes ---
 
 // Quotes (טעינת הצעות)
@@ -42,8 +51,11 @@ app.get("/", (req, res) => {
 });
 app.use(express.static(path.join(__dirname, "public", "quotes")));
 
-// Mislaka: /mislaka/dashboard.html, /mislaka/analysis.html
-app.use("/mislaka", express.static(path.join(__dirname, "public", "mislaka")));
+// Mislaka: /mislaka/dashboard.html, /mislaka/analysis.html (Fireberry only, except transfer)
+app.use("/mislaka", (req, res, next) => {
+    if (req.path.includes("transfer")) return next(); // transfer has its own check
+    return requireFireberry(req, res, next);
+}, express.static(path.join(__dirname, "public", "mislaka")));
 
 // Har Habituach: /har-habituach/
 app.use("/har-habituach", express.static(path.join(__dirname, "public", "har-habituach")));
