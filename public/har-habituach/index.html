@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>הר הביטוח — עוצמה</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1f2e 0%, #1a1f2e 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+        }
+
+        .container { width: 100%; max-width: 440px; padding: 20px; }
+
+        /* Header */
+        .header { text-align: center; margin-bottom: 32px; }
+        .header img { height: 48px; margin-bottom: 20px; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3)); }
+        .header h1 { font-size: 24px; font-weight: 700; }
+        .header p { margin-top: 6px; font-size: 14px; color: rgba(255,255,255,0.5); }
+
+        /* User badge */
+        .user-badge {
+            position: fixed; top: 16px; left: 16px; z-index: 20;
+            display: flex; align-items: center; gap: 8px;
+            background: rgba(255,255,255,0.1); backdrop-filter: blur(8px);
+            border: 1px solid rgba(255,255,255,0.15); border-radius: 10px;
+            padding: 6px 12px;
+        }
+        .user-badge .avatar {
+            width: 24px; height: 24px; border-radius: 50%;
+            background: rgba(216,179,104,0.2); display: flex; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: 700; color: #d8b368;
+        }
+        .user-badge span { font-size: 14px; }
+        .user-badge button {
+            background: none; border: none; color: rgba(255,255,255,0.4);
+            cursor: pointer; font-size: 12px; margin-right: 4px;
+        }
+        .user-badge button:hover { color: rgba(255,255,255,0.7); }
+
+        /* Login */
+        .login-box {
+            background: rgba(255,255,255,0.08); backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.12); border-radius: 16px;
+            padding: 32px; text-align: center;
+        }
+        .login-box h2 { font-size: 18px; margin-bottom: 16px; }
+        .login-box select {
+            width: 100%; padding: 10px 12px; border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.1);
+            color: #fff; font-size: 14px; font-family: inherit; direction: rtl;
+        }
+        .login-box select option { background: #1a1f2e; color: #fff; }
+        .login-box button {
+            margin-top: 16px; width: 100%; padding: 10px;
+            border-radius: 8px; border: none;
+            background: #d8b368; color: #1a1f2e; font-weight: 600;
+            font-size: 14px; cursor: pointer;
+        }
+        .login-box button:hover { background: #c9a458; }
+
+        /* Upload zone */
+        .upload-zone {
+            cursor: pointer; border-radius: 16px; border: 2px dashed rgba(255,255,255,0.2);
+            padding: 40px; text-align: center; transition: all 0.2s;
+            background: rgba(255,255,255,0.1); backdrop-filter: blur(12px);
+        }
+        .upload-zone:hover { border-color: rgba(255,255,255,0.4); background: rgba(255,255,255,0.15); }
+        .upload-zone.dragging { border-color: #d8b368; background: rgba(255,255,255,0.15); transform: scale(1.01); }
+        .upload-zone .icon {
+            width: 64px; height: 64px; border-radius: 16px; margin: 0 auto 12px;
+            background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center;
+        }
+        .upload-zone .icon svg { width: 32px; height: 32px; color: rgba(255,255,255,0.6); }
+        .upload-zone p.main { font-size: 16px; font-weight: 600; }
+        .upload-zone p.sub { font-size: 14px; color: rgba(255,255,255,0.4); margin-top: 4px; }
+        .upload-zone .file-types {
+            margin-top: 8px; display: inline-flex; align-items: center; gap: 6px;
+            padding: 4px 12px; background: rgba(255,255,255,0.1); border-radius: 20px;
+            font-size: 12px; color: rgba(255,255,255,0.5);
+        }
+
+        /* Progress */
+        .progress-box {
+            background: rgba(255,255,255,0.08); backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.12); border-radius: 16px;
+            padding: 24px; max-height: 400px; overflow-y: auto;
+        }
+        .progress-item {
+            padding: 6px 0; font-size: 13px; color: rgba(255,255,255,0.7);
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .progress-item:last-child { border-bottom: none; }
+        .progress-item.error { color: #f87171; }
+        .progress-item.done { color: #4ade80; font-weight: 600; }
+
+        .btn-reset {
+            margin-top: 16px; width: 100%; padding: 10px;
+            border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);
+            background: transparent; color: #fff; font-size: 14px; cursor: pointer;
+        }
+        .btn-reset:hover { background: rgba(255,255,255,0.1); }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<div class="user-badge hidden" id="userBadge">
+    <div class="avatar" id="userAvatar"></div>
+    <span id="userName"></span>
+    <button onclick="logout()" title="התנתק">✕</button>
+</div>
+
+<div class="container">
+    <div class="header">
+        <img src="https://www.otzma-ins.co.il/wp-content/uploads/2025/12/cropped-logo.png" alt="עוצמה ביטוח">
+        <h1>הר הביטוח</h1>
+        <p>טעינת נתוני הר הביטוח לפיירברי</p>
+    </div>
+
+    <!-- Login -->
+    <div id="loginSection" class="login-box">
+        <h2>בחר משתמש</h2>
+        <select id="userSelect"><option value="">טוען משתמשים...</option></select>
+        <button onclick="loginUser()">כניסה</button>
+    </div>
+
+    <!-- Upload -->
+    <div id="uploadSection" class="hidden">
+        <div class="upload-zone" id="uploadZone"
+             ondrop="handleDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)"
+             onclick="document.getElementById('fileInput').click()">
+            <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none" onchange="handleFileSelect(event)">
+            <div class="icon">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+                </svg>
+            </div>
+            <p class="main">גרור קובץ Excel לכאן</p>
+            <p class="sub">או לחץ לבחירת קובץ</p>
+            <div class="file-types">.xlsx / .xls</div>
+        </div>
+    </div>
+
+    <!-- Progress -->
+    <div id="progressSection" class="hidden">
+        <div class="progress-box" id="progressBox"></div>
+        <button class="btn-reset hidden" id="resetBtn" onclick="resetUpload()">העלאה חדשה</button>
+    </div>
+</div>
+
+<script>
+let currentUser = null;
+
+// Check stored user on load
+(function init() {
+    const stored = localStorage.getItem("otzma-user");
+    if (stored) {
+        currentUser = JSON.parse(stored);
+        showUploadUI();
+    }
+    loadUsers();
+})();
+
+async function loadUsers() {
+    try {
+        const res = await fetch("/har-habituach/api/users");
+        const data = await res.json();
+        const select = document.getElementById("userSelect");
+        select.innerHTML = '<option value="">בחר משתמש</option>';
+        (data.users || []).forEach(u => {
+            const opt = document.createElement("option");
+            opt.value = JSON.stringify(u);
+            opt.textContent = `${u.name} (${u.email})`;
+            select.appendChild(opt);
+        });
+    } catch (err) {
+        console.error("Failed to load users:", err);
+    }
+}
+
+function loginUser() {
+    const val = document.getElementById("userSelect").value;
+    if (!val) return alert("בחר משתמש");
+    currentUser = JSON.parse(val);
+    localStorage.setItem("otzma-user", JSON.stringify(currentUser));
+    showUploadUI();
+}
+
+function logout() {
+    localStorage.removeItem("otzma-user");
+    currentUser = null;
+    document.getElementById("loginSection").classList.remove("hidden");
+    document.getElementById("uploadSection").classList.add("hidden");
+    document.getElementById("progressSection").classList.add("hidden");
+    document.getElementById("userBadge").classList.add("hidden");
+}
+
+function showUploadUI() {
+    document.getElementById("loginSection").classList.add("hidden");
+    document.getElementById("uploadSection").classList.remove("hidden");
+    document.getElementById("progressSection").classList.add("hidden");
+    document.getElementById("userBadge").classList.remove("hidden");
+    document.getElementById("userAvatar").textContent = currentUser.name.charAt(0);
+    document.getElementById("userName").textContent = currentUser.name;
+}
+
+// Drag & drop
+function handleDragOver(e) { e.preventDefault(); document.getElementById("uploadZone").classList.add("dragging"); }
+function handleDragLeave(e) { document.getElementById("uploadZone").classList.remove("dragging"); }
+function handleDrop(e) {
+    e.preventDefault();
+    document.getElementById("uploadZone").classList.remove("dragging");
+    if (e.dataTransfer.files.length > 0) processFile(e.dataTransfer.files[0]);
+}
+function handleFileSelect(e) {
+    if (e.target.files[0]) processFile(e.target.files[0]);
+}
+
+function processFile(file) {
+    if (!file.name.match(/\.xlsx?$/i)) return alert("יש להעלות קובץ Excel בלבד (.xlsx / .xls)");
+    if (file.size > 5 * 1024 * 1024) return alert("הקובץ גדול מדי (מקסימום 5MB)");
+
+    document.getElementById("uploadSection").classList.add("hidden");
+    document.getElementById("progressSection").classList.remove("hidden");
+    document.getElementById("progressBox").innerHTML = "";
+    document.getElementById("resetBtn").classList.add("hidden");
+
+    const formData = new FormData();
+    formData.append("file", file);
+    if (currentUser) {
+        formData.append("uploaderName", currentUser.name);
+        formData.append("uploaderEmail", currentUser.email);
+    }
+
+    fetch("/har-habituach/api/process-excel", { method: "POST", body: formData })
+        .then(response => {
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+
+            function read() {
+                reader.read().then(({ done, value }) => {
+                    if (done) { document.getElementById("resetBtn").classList.remove("hidden"); return; }
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split("\n");
+                    buffer = lines.pop();
+                    lines.forEach(line => {
+                        if (!line.trim()) return;
+                        try {
+                            const update = JSON.parse(line);
+                            addProgressItem(update);
+                        } catch {}
+                    });
+                    read();
+                });
+            }
+            read();
+        })
+        .catch(err => {
+            addProgressItem({ step: "error", message: err.message || "שגיאה בחיבור לשרת" });
+            document.getElementById("resetBtn").classList.remove("hidden");
+        });
+}
+
+function addProgressItem(update) {
+    const box = document.getElementById("progressBox");
+    const div = document.createElement("div");
+    div.className = "progress-item";
+    if (update.step === "error") div.className += " error";
+    if (update.step === "done") {
+        div.className += " done";
+        try {
+            const result = JSON.parse(update.message);
+            div.textContent = `הושלם: ${result.createdCount} רשומות נוצרו מתוך ${result.totalRows}`;
+            if (result.errors.length > 0) div.textContent += ` (${result.errors.length} שגיאות)`;
+        } catch {
+            div.textContent = update.message;
+        }
+        document.getElementById("resetBtn").classList.remove("hidden");
+    } else {
+        div.textContent = update.message;
+    }
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+}
+
+function resetUpload() {
+    document.getElementById("uploadSection").classList.remove("hidden");
+    document.getElementById("progressSection").classList.add("hidden");
+    document.getElementById("fileInput").value = "";
+}
+</script>
+
+</body>
+</html>
