@@ -51,8 +51,8 @@ router.post("/api/process-excel", upload.single("file"), async (req, res) => {
 
     try {
         const file = req.file;
-        const uploaderName = req.body.uploaderName || "לא ידוע";
         const ownerId = req.body.ownerId || "";
+        const leadId = req.body.leadId || "";
 
         if (!file) {
             send({ step: "error", message: "לא נבחר קובץ" });
@@ -70,17 +70,29 @@ router.post("/api/process-excel", upload.single("file"), async (req, res) => {
 
         send({ step: "parsing", message: `נמצאו ${rows.length} שורות ביטוח, ת.ז. ${idNumber}` });
 
-        // 2. Search person in Fireberry
-        send({ step: "searching", message: `מחפש ת.ז. ${idNumber} בפיירברי...` });
-        const person = await searchPerson(idNumber);
+        // 2. Resolve person — use leadId if available, otherwise search by ID
+        let person;
+        if (leadId) {
+            send({ step: "searching", message: "משתמש בליד מקושר..." });
+            person = {
+                insuredId: "",
+                clientId: "",
+                leadId: leadId,
+                personType: "lead",
+            };
+            send({ step: "searching", message: "ליד מקושר נמצא" });
+        } else {
+            send({ step: "searching", message: `מחפש ת.ז. ${idNumber} בפיירברי...` });
+            person = await searchPerson(idNumber);
 
-        if (!person) {
-            send({ step: "error", message: `לא נמצא מבוטח או ליד בפיירברי עם ת.ז. ${idNumber}` });
-            return res.end();
+            if (!person) {
+                send({ step: "error", message: `לא נמצא מבוטח או ליד בפיירברי עם ת.ז. ${idNumber}` });
+                return res.end();
+            }
+
+            const typeHeb = person.personType === "insured" ? "מבוטח" : "ליד";
+            send({ step: "searching", message: `נמצא ${typeHeb} בפיירברי` });
         }
-
-        const typeHeb = person.personType === "insured" ? "מבוטח" : "ליד";
-        send({ step: "searching", message: `נמצא ${typeHeb} בפיירברי` });
 
         // 3. Load field options
         send({ step: "loading_options", message: "טוען ערכי שדות מפיירברי..." });

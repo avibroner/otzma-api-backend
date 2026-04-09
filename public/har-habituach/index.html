@@ -18,13 +18,22 @@
             color: #fff;
         }
 
-        .container { width: 100%; max-width: 440px; padding: 20px; }
+        .container { width: 100%; max-width: 480px; padding: 20px; }
 
         /* Header */
-        .header { text-align: center; margin-bottom: 32px; }
-        .header img { height: 48px; margin-bottom: 20px; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3)); }
-        .header h1 { font-size: 24px; font-weight: 700; }
+        .header { text-align: center; margin-bottom: 24px; }
+        .header img { height: 48px; margin-bottom: 16px; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3)); }
+        .header h1 { font-size: 22px; font-weight: 700; }
         .header p { margin-top: 6px; font-size: 14px; color: rgba(255,255,255,0.5); }
+
+        /* Agent info */
+        .agent-bar {
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            margin-bottom: 20px; padding: 8px 16px;
+            background: rgba(255,255,255,0.08); border-radius: 10px;
+            font-size: 13px; color: rgba(255,255,255,0.6);
+        }
+        .agent-bar .name { color: #d8b368; font-weight: 600; }
 
         /* Upload zone */
         .upload-zone {
@@ -61,12 +70,17 @@
         .progress-item.error { color: #f87171; }
         .progress-item.done { color: #4ade80; font-weight: 600; }
 
-        .btn-reset {
-            margin-top: 16px; width: 100%; padding: 10px;
-            border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);
-            background: transparent; color: #fff; font-size: 14px; cursor: pointer;
+        /* Result card */
+        .result-card {
+            margin-top: 16px; padding: 20px; border-radius: 12px; text-align: center;
         }
-        .btn-reset:hover { background: rgba(255,255,255,0.1); }
+        .result-card.success { background: rgba(5,150,105,0.15); border: 1px solid rgba(5,150,105,0.3); }
+        .result-card.error { background: rgba(220,38,38,0.15); border: 1px solid rgba(220,38,38,0.3); }
+        .result-card h3 { font-size: 18px; margin-bottom: 8px; }
+        .result-card.success h3 { color: #4ade80; }
+        .result-card.error h3 { color: #f87171; }
+        .result-card p { font-size: 13px; color: rgba(255,255,255,0.6); margin-top: 4px; }
+        .result-card .timestamp { font-size: 11px; color: rgba(255,255,255,0.35); margin-top: 8px; }
 
         .hidden { display: none !important; }
     </style>
@@ -78,6 +92,11 @@
         <img src="https://www.otzma-ins.co.il/wp-content/uploads/2025/12/cropped-logo.png" alt="עוצמה ביטוח">
         <h1>הר הביטוח</h1>
         <p>טעינת נתוני הר הביטוח לפיירברי</p>
+    </div>
+
+    <div class="agent-bar" id="agentBar">
+        <span>סוכן:</span>
+        <span class="name" id="agentName">—</span>
     </div>
 
     <!-- Upload -->
@@ -101,14 +120,22 @@
     <!-- Progress -->
     <div id="progressSection" class="hidden">
         <div class="progress-box" id="progressBox"></div>
-        <button class="btn-reset hidden" id="resetBtn" onclick="resetUpload()">העלאה חדשה</button>
     </div>
 </div>
 
 <script>
-// Get ownerid from URL query param (passed by Fireberry iframe)
+// Get params from URL (passed by Fireberry iframe)
 const params = new URLSearchParams(window.location.search);
 const ownerId = params.get("ownerid") || "";
+const ownerName = params.get("ownername") || "";
+const leadId = params.get("leadid") || "";
+
+// Show agent name
+if (ownerName) {
+    document.getElementById("agentName").textContent = ownerName;
+} else {
+    document.getElementById("agentBar").classList.add("hidden");
+}
 
 // Drag & drop
 function handleDragOver(e) { e.preventDefault(); document.getElementById("uploadZone").classList.add("dragging"); }
@@ -129,13 +156,11 @@ function processFile(file) {
     document.getElementById("uploadSection").classList.add("hidden");
     document.getElementById("progressSection").classList.remove("hidden");
     document.getElementById("progressBox").innerHTML = "";
-    document.getElementById("resetBtn").classList.add("hidden");
 
     const formData = new FormData();
     formData.append("file", file);
-    if (ownerId) {
-        formData.append("ownerId", ownerId);
-    }
+    if (ownerId) formData.append("ownerId", ownerId);
+    if (leadId) formData.append("leadId", leadId);
 
     fetch("/har-habituach/api/process-excel", { method: "POST", body: formData })
         .then(response => {
@@ -145,7 +170,7 @@ function processFile(file) {
 
             function read() {
                 reader.read().then(({ done, value }) => {
-                    if (done) { document.getElementById("resetBtn").classList.remove("hidden"); return; }
+                    if (done) return;
                     buffer += decoder.decode(value, { stream: true });
                     const lines = buffer.split("\n");
                     buffer = lines.pop();
@@ -163,36 +188,44 @@ function processFile(file) {
         })
         .catch(err => {
             addProgressItem({ step: "error", message: err.message || "שגיאה בחיבור לשרת" });
-            document.getElementById("resetBtn").classList.remove("hidden");
         });
 }
 
 function addProgressItem(update) {
     const box = document.getElementById("progressBox");
-    const div = document.createElement("div");
-    div.className = "progress-item";
-    if (update.step === "error") div.className += " error";
+
     if (update.step === "done") {
-        div.className += " done";
         try {
             const result = JSON.parse(update.message);
-            div.textContent = `הושלם: ${result.createdCount} רשומות נוצרו מתוך ${result.totalRows}`;
-            if (result.errors.length > 0) div.textContent += ` (${result.errors.length} שגיאות)`;
+            const now = new Date().toLocaleString("he-IL", { timeZone: "Asia/Jerusalem" });
+            const card = document.createElement("div");
+            card.className = "result-card success";
+            card.innerHTML = `
+                <h3>✓ הטעינה הושלמה</h3>
+                <p><strong>${result.createdCount}</strong> רשומות נוצרו מתוך <strong>${result.totalRows}</strong></p>
+                ${result.errors.length > 0 ? `<p style="color:#f87171">${result.errors.length} שגיאות</p>` : ""}
+                ${result.warnings.length > 0 ? `<p style="color:#fbbf24">${result.warnings.length} אזהרות</p>` : ""}
+                <div class="timestamp">${now}</div>
+            `;
+            box.appendChild(card);
         } catch {
+            const div = document.createElement("div");
+            div.className = "progress-item done";
             div.textContent = update.message;
+            box.appendChild(div);
         }
-        document.getElementById("resetBtn").classList.remove("hidden");
+    } else if (update.step === "error") {
+        const card = document.createElement("div");
+        card.className = "result-card error";
+        card.innerHTML = `<h3>✕ שגיאה</h3><p>${update.message}</p>`;
+        box.appendChild(card);
     } else {
+        const div = document.createElement("div");
+        div.className = "progress-item";
         div.textContent = update.message;
+        box.appendChild(div);
     }
-    box.appendChild(div);
     box.scrollTop = box.scrollHeight;
-}
-
-function resetUpload() {
-    document.getElementById("uploadSection").classList.remove("hidden");
-    document.getElementById("progressSection").classList.add("hidden");
-    document.getElementById("fileInput").value = "";
 }
 </script>
 
