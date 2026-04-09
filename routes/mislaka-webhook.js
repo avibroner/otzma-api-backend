@@ -180,12 +180,41 @@ router.post("/webhook", async (req, res) => {
             const totalMonthly = polisot.reduce((s, p) => s + (parseFloat(p["הפקדה אחרונה סה״כ"]) || 0), 0);
             const totalAccumulation = polisot.reduce((s, p) => s + (parseFloat(p["סך חיסכון"]) || 0), 0);
 
-            // TODO: Map these fields to the actual lead fields in Fireberry
-            // await putRequest(`/record/1003/${leadId}`, {
-            //     // Personal details from client object
-            //     // Sum fields
-            // });
-            console.log("Lead update — total monthly:", totalMonthly, "total accumulation:", totalAccumulation);
+            // Build מיופי כוח text — each representative on a new line
+            const powerOfAttorneyLines = [];
+            for (const pol of polisot) {
+                const poa = pol["פירוט מיופי כח"];
+                if (poa && poa["האם קיים מיופה כח"] === "כן" && poa["שם מיופה כח"]) {
+                    const line = `${poa["שם מיופה כח"]} (${poa["סוג מיופה כח"] || ""}) — ${pol["שם תוכנית"] || pol["סוג מוצר"] || ""}`;
+                    if (!powerOfAttorneyLines.includes(line)) {
+                        powerOfAttorneyLines.push(line);
+                    }
+                }
+            }
+
+            const leadUpdate = {
+                name: `${client["שם פרטי"] || ""} ${client["שם משפחה"] || ""}`.trim(),
+                pcfsystemfield101: client["מספר זיהוי לקוח"] || "",        // ת.ז
+                pcfsystemfield560: client["דואר אלקטרוני"] || "",           // מייל
+                pcfsystemfield331: client["שם יישוב"] || "",               // עיר
+                pcfsystemfield531: client["רחוב"] ? `${client["רחוב"]} ${client["מספר בית"] || ""}`.trim() : "", // רחוב
+                pcfsystemfield562: totalMonthly,                            // סך הפקדות
+                pcfsystemfield563: totalAccumulation,                       // סך צבירות
+            };
+
+            if (powerOfAttorneyLines.length > 0) {
+                leadUpdate.pcfsystemfield564 = powerOfAttorneyLines.join("\n"); // מיופי כוח
+            }
+
+            // Remove empty values
+            for (const key of Object.keys(leadUpdate)) {
+                if (leadUpdate[key] === "" || leadUpdate[key] === null || leadUpdate[key] === undefined) {
+                    delete leadUpdate[key];
+                }
+            }
+
+            const leadUpdateResult = await putRequest(`/record/1003/${leadId}`, leadUpdate);
+            console.log("Lead updated:", leadUpdateResult?.success, "— name:", leadUpdate.name, "monthly:", totalMonthly, "accumulation:", totalAccumulation);
         }
 
         // Step 5: Delete existing mislaka products for this mislaka record
