@@ -1,7 +1,10 @@
 const express = require("express");
 const multer = require("multer");
+const fs = require("fs");
+const path = require("path");
+const crypto = require("crypto");
 const router = express.Router();
-const { postRequest } = require("../lib/fireberry");
+const { postRequest, getRequest } = require("../lib/fireberry");
 const { parseExcel } = require("../lib/excel-parser");
 const {
     searchPerson,
@@ -15,8 +18,58 @@ const {
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
-// Buffer mapping (in-memory, simple replacement for Redis)
-let bufferMapping = {};
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "Otzma2026!";
+const MAPPING_FILE = path.join(__dirname, "..", "data", "buffer-mapping.json");
+const SESSIONS = new Map(); // token → expiry
+
+// Load buffer mapping from file
+function loadMapping() {
+    try {
+        if (fs.existsSync(MAPPING_FILE)) {
+            return JSON.parse(fs.readFileSync(MAPPING_FILE, "utf8"));
+        }
+    } catch {}
+    return {};
+}
+
+// Save buffer mapping to file
+function saveMapping(mapping) {
+    const dir = path.dirname(MAPPING_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(MAPPING_FILE, JSON.stringify(mapping, null, 2), "utf8");
+}
+
+let bufferMapping = loadMapping();
+
+// Middleware: check Fireberry referer for upload pages
+function requireFireberry(req, res, next) {
+    const referer = req.headers.referer || req.headers.origin || "";
+    if (referer.includes("fireberry.com") || referer.includes("powerlink.co.il") || referer.includes("localhost")) {
+        return next();
+    }
+    return res.status(403).json({ error: "גישה מותרת רק מתוך פיירברי" });
+}
+
+// Admin auth helpers
+function generateToken() {
+    return crypto.randomBytes(32).toString("hex");
+}
+
+function isValidSession(token) {
+    const expiry = SESSIONS.get(token);
+    if (!expiry) return false;
+    if (Date.now() > expiry) { SESSIONS.delete(token); return false; }
+    return true;
+}
+
+// Apply Fireberry check to upload page and process-excel
+router.use("/", (req, res, next) => {
+    // Allow admin routes, API mapping, and static files without referer check
+    if (req.path.startsWith("/admin") || req.path.startsWith("/api/admin") || req.path.startsWith("/api/field-options")) {
+        return next();
+    }
+    return requireFireberry(req, res, next);
+});
 
 // GET /har-habituach/api/users — fetch active users from Fireberry
 router.get("/api/users", async (req, res) => {
@@ -173,15 +226,63 @@ router.post("/api/process-excel", upload.single("file"), async (req, res) => {
     res.end();
 });
 
-// GET /har-habituach/api/mapping — get buffer mapping
-router.get("/api/mapping", (req, res) => {
-    res.json(bufferMapping);
+// --- Admin routes ---
+
+// POST /har-habituach/api/admin-auth — login
+router.post("/api/admin-auth", (req, res) => {
+    const { password } = req.body || {};
+    if (password !== ADMIN_PASSWORD) {
+        return res.status(401).json({ error: "סיסמה שגויה" });
+    }
+    const token = generateToken();
+    SESSIONS.set(token, Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    res.cookie("admin_session", token, { httpOnly: true, maxAge: 7 * 24 * 60 * 60 * 1000, path: "/" });
+    res.json({ authenticated: true });
 });
 
-// POST /har-habituach/api/mapping — update buffer mapping
-router.post("/api/mapping", (req, res) => {
-    bufferMapping = req.body || {};
+// GET /har-habituach/api/admin-auth — check auth
+router.get("/api/admin-auth", (req, res) => {
+    const token = req.cookies?.admin_session || "";
+    res.json({ authenticated: isValidSession(token) });
+});
+
+// DELETE /har-habituach/api/admin-auth — logout
+router.delete("/api/admin-auth", (req, res) => {
+    const token = req.cookies?.admin_session;
+    if (token) SESSIONS.delete(token);
+    res.clearCookie("admin_session", { path: "/" });
     res.json({ success: true });
+});
+
+// GET /har-habituach/api/field-options — get branches + buffers + mapping
+router.get("/api/field-options", async (req, res) => {
+    try {
+        const fieldOptions = await fetchFieldOptions();
+        const branches = Object.entries(fieldOptions.branchMap).map(([name, value]) => ({ name, value }));
+        const buffers = Object.entries(fieldOptions.bufferMap).map(([name, value]) => ({ name, value }));
+        res.json({ branches, buffers, mapping: bufferMapping });
+    } catch (err) {
+        res.status(500).json({ error: err.message || "שגיאה בטעינת שדות" });
+    }
+});
+
+// POST /har-habituach/api/field-options — save mapping
+router.post("/api/field-options", (req, res) => {
+    const token = req.cookies?.admin_session || "";
+    if (!isValidSession(token)) {
+        return res.status(401).json({ error: "לא מורשה" });
+    }
+    const { mapping } = req.body || {};
+    if (mapping) {
+        bufferMapping = mapping;
+        saveMapping(bufferMapping);
+    }
+    res.json({ success: true });
+});
+
+// GET /har-habituach/admin — serve admin page
+router.get("/admin", (req, res) => {
+    res.sendFile(path.join(__dirname, "..", "public", "har-habituach", "admin.html"));
 });
 
 module.exports = router;

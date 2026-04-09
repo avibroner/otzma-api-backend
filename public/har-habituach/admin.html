@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>הגדרות הר הביטוח — עוצמה</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #1a1f2e; min-height: 100vh; color: #fff;
+        }
+        .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+
+        /* Header */
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .header h1 { font-size: 22px; }
+        .header .info { font-size: 13px; color: rgba(255,255,255,0.5); margin-top: 4px; }
+        .header .info .unmapped { color: #f59e0b; font-weight: 600; }
+        .header .info .all-mapped { color: #4ade80; }
+        .btn { padding: 8px 20px; border-radius: 8px; border: none; font-size: 13px; cursor: pointer; font-weight: 600; }
+        .btn-save { background: #d8b368; color: #1a1f2e; }
+        .btn-save:hover { background: #c9a458; }
+        .btn-save:disabled { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.3); cursor: not-allowed; }
+        .btn-logout { background: transparent; border: 1px solid rgba(255,255,255,0.2); color: rgba(255,255,255,0.6); margin-left: 8px; }
+        .btn-logout:hover { background: rgba(255,255,255,0.1); }
+
+        /* Login */
+        .login-box {
+            max-width: 360px; margin: 100px auto; padding: 32px;
+            background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 16px; text-align: center;
+        }
+        .login-box h2 { font-size: 18px; margin-bottom: 16px; }
+        .login-box input {
+            width: 100%; padding: 10px 12px; border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.1);
+            color: #fff; font-size: 14px; font-family: inherit; direction: ltr; text-align: center;
+        }
+        .login-box .btn { width: 100%; margin-top: 12px; padding: 10px; }
+        .login-error { color: #f87171; font-size: 13px; margin-top: 8px; }
+
+        /* Saved banner */
+        .saved-banner {
+            padding: 10px 16px; margin-bottom: 16px; border-radius: 10px;
+            background: rgba(74,222,128,0.1); border: 1px solid rgba(74,222,128,0.2);
+            color: #4ade80; font-size: 13px; text-align: center;
+        }
+
+        /* Table */
+        .table-wrap {
+            background: #fff; border-radius: 12px; overflow: hidden;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.15);
+        }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th {
+            text-align: right; padding: 10px 14px; background: #f3f4f6;
+            color: #374151; font-weight: 600; border-bottom: 2px solid #e5e7eb;
+        }
+        td { padding: 8px 14px; border-bottom: 1px solid #f1f5f9; color: #1f2937; }
+        tr.unmapped td { background: #fff7ed; }
+        td .branch-name { font-weight: 500; }
+        td .branch-id { font-size: 11px; color: #9ca3af; font-family: monospace; }
+        td select {
+            width: 100%; padding: 6px 8px; border-radius: 6px; font-size: 13px;
+            border: 1px solid #d1d5db; background: #fff; color: #1f2937; font-family: inherit;
+        }
+        td select.empty { border-color: #f59e0b; background: #fff7ed; }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<!-- Login -->
+<div id="loginSection" class="login-box">
+    <h2>כניסת מנהל</h2>
+    <input type="password" id="passwordInput" placeholder="סיסמה" onkeydown="if(event.key==='Enter')login()">
+    <button class="btn btn-save" onclick="login()">כניסה</button>
+    <div class="login-error hidden" id="loginError"></div>
+</div>
+
+<!-- Admin -->
+<div id="adminSection" class="container hidden">
+    <div class="header">
+        <div>
+            <h1>הגדרות הר הביטוח</h1>
+            <div class="info" id="statsInfo"></div>
+        </div>
+        <div>
+            <button class="btn btn-logout" onclick="logout()">יציאה</button>
+            <button class="btn btn-save" id="saveBtn" disabled onclick="saveMapping()">שמור</button>
+        </div>
+    </div>
+
+    <div class="saved-banner hidden" id="savedBanner">המיפוי עודכן בהצלחה</div>
+
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr><th>ענף משני</th><th>מזהה</th><th>חוצץ</th></tr>
+            </thead>
+            <tbody id="mappingBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+let branches = [];
+let buffers = [];
+let mapping = {};
+let hasChanges = false;
+
+// Check auth on load
+(async function init() {
+    try {
+        const res = await fetch("/har-habituach/api/admin-auth");
+        const data = await res.json();
+        if (data.authenticated) {
+            showAdmin();
+        }
+    } catch {}
+})();
+
+async function login() {
+    const password = document.getElementById("passwordInput").value;
+    const errorEl = document.getElementById("loginError");
+    errorEl.classList.add("hidden");
+
+    const res = await fetch("/har-habituach/api/admin-auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password })
+    });
+
+    if (res.ok) {
+        showAdmin();
+    } else {
+        const data = await res.json();
+        errorEl.textContent = data.error || "סיסמה שגויה";
+        errorEl.classList.remove("hidden");
+    }
+}
+
+async function logout() {
+    await fetch("/har-habituach/api/admin-auth", { method: "DELETE" });
+    document.getElementById("adminSection").classList.add("hidden");
+    document.getElementById("loginSection").classList.remove("hidden");
+    document.getElementById("passwordInput").value = "";
+}
+
+async function showAdmin() {
+    document.getElementById("loginSection").classList.add("hidden");
+    document.getElementById("adminSection").classList.remove("hidden");
+
+    // Load field options + mapping
+    const res = await fetch("/har-habituach/api/field-options");
+    const data = await res.json();
+    branches = data.branches || [];
+    buffers = data.buffers || [];
+    mapping = data.mapping || {};
+
+    renderTable();
+    updateStats();
+}
+
+function renderTable() {
+    const tbody = document.getElementById("mappingBody");
+    tbody.innerHTML = "";
+
+    branches.forEach(branch => {
+        const isUnmapped = !mapping[branch.name];
+        const tr = document.createElement("tr");
+        if (isUnmapped) tr.className = "unmapped";
+
+        const bufferOptions = buffers.map(b =>
+            `<option value="${b.value}" ${mapping[branch.name] === b.value ? "selected" : ""}>${b.name}</option>`
+        ).join("");
+
+        tr.innerHTML = `
+            <td><div class="branch-name">${branch.name}</div></td>
+            <td><div class="branch-id">${branch.value}</div></td>
+            <td>
+                <select class="${isUnmapped ? 'empty' : ''}" onchange="onBufferChange('${branch.name.replace(/'/g, "\\'")}', this.value, this)">
+                    <option value="">— בחר חוצץ —</option>
+                    ${bufferOptions}
+                </select>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function onBufferChange(branchName, value, selectEl) {
+    mapping[branchName] = value;
+    hasChanges = true;
+    document.getElementById("saveBtn").disabled = false;
+    document.getElementById("savedBanner").classList.add("hidden");
+
+    // Update visual
+    const tr = selectEl.closest("tr");
+    if (value) {
+        tr.classList.remove("unmapped");
+        selectEl.classList.remove("empty");
+    } else {
+        tr.classList.add("unmapped");
+        selectEl.classList.add("empty");
+    }
+    updateStats();
+}
+
+function updateStats() {
+    const unmapped = branches.filter(b => !mapping[b.name]).length;
+    const el = document.getElementById("statsInfo");
+    if (unmapped > 0) {
+        el.innerHTML = `${branches.length} ענפים משניים | <span class="unmapped">${unmapped} ללא חוצץ</span>`;
+    } else {
+        el.innerHTML = `${branches.length} ענפים משניים | <span class="all-mapped">הכל ממופה</span>`;
+    }
+}
+
+async function saveMapping() {
+    document.getElementById("saveBtn").disabled = true;
+
+    await fetch("/har-habituach/api/field-options", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mapping })
+    });
+
+    hasChanges = false;
+    document.getElementById("savedBanner").classList.remove("hidden");
+}
+</script>
+
+</body>
+</html>
