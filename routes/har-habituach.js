@@ -20,6 +20,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 *
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "Otzma2026!";
 const MAPPING_FILE = path.join(__dirname, "..", "data", "buffer-mapping.json");
+const LOG_FILE = path.join(__dirname, "..", "data", "upload-log.json");
 const SESSIONS = new Map(); // token → expiry
 
 // Load buffer mapping from file
@@ -40,6 +41,23 @@ function saveMapping(mapping) {
 }
 
 let bufferMapping = loadMapping();
+
+// Upload log helpers
+function loadLogs() {
+    try {
+        if (fs.existsSync(LOG_FILE)) return JSON.parse(fs.readFileSync(LOG_FILE, "utf8"));
+    } catch {}
+    return [];
+}
+
+function appendLog(entry) {
+    const logs = loadLogs();
+    logs.unshift(entry); // newest first
+    if (logs.length > 200) logs.length = 200;
+    const dir = path.dirname(LOG_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(LOG_FILE, JSON.stringify(logs, null, 2), "utf8");
+}
 
 // Middleware: check Fireberry referer for upload pages
 function requireFireberry(req, res, next) {
@@ -205,7 +223,22 @@ router.post("/api/process-excel", upload.single("file"), async (req, res) => {
             errors.push(`שגיאה בעדכון סיכומי פרמיות: ${err.message || "unknown"}`);
         }
 
-        // 8. Done
+        // 8. Log upload
+        try {
+            appendLog({
+                timestamp: new Date().toISOString(),
+                ownerId,
+                fileName: file.originalname,
+                idNumber,
+                personType: person.personType,
+                totalRows: rows.length,
+                createdCount,
+                errorsCount: errors.length,
+                warningsCount: warnings.length,
+            });
+        } catch {}
+
+        // 9. Done
         send({
             step: "done",
             message: JSON.stringify({
@@ -278,6 +311,15 @@ router.post("/api/field-options", (req, res) => {
         saveMapping(bufferMapping);
     }
     res.json({ success: true });
+});
+
+// GET /har-habituach/api/upload-log — get upload history
+router.get("/api/upload-log", (req, res) => {
+    const token = req.cookies?.admin_session || "";
+    if (!isValidSession(token)) {
+        return res.status(401).json({ error: "לא מורשה" });
+    }
+    res.json({ logs: loadLogs() });
 });
 
 // GET /har-habituach/admin — serve admin page
