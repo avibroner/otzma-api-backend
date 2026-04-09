@@ -1,0 +1,23 @@
+console.log("��� OTZMA SERVER START");
+
+const express = require("express");
+const path = require("path");
+
+const app = express();
+
+/**
+ * ��� הגשת קבצים סטטיים (HTML / JS / CSS)
+ * זה מה שהיה חסר
+ */
+app.use(express.static(path.join(__dirname)));
+
+app.use(express.json());
+
+app.get("/health-check", (req, res) => {
+  res.json({ status: 200 });
+});
+
+app.listen(5000, () => {
+  console.log("Node API running on port 5000");
+});
+
