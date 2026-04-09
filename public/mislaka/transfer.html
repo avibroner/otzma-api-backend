@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ניוד מסלקה — עוצמה</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f0f2f5;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 520px;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            padding: 24px;
+            text-align: center;
+            color: #fff;
+        }
+        .header h1 { font-size: 20px; font-weight: 700; }
+        .header p { font-size: 13px; opacity: 0.8; margin-top: 4px; }
+
+        .content { padding: 24px; }
+
+        /* Steps */
+        .step {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 10px 0;
+            border-bottom: 1px solid #f1f5f9;
+            animation: fadeIn 0.3s ease;
+        }
+        .step:last-child { border-bottom: none; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .step-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-size: 14px;
+        }
+
+        .step-icon.loading {
+            background: #eff6ff;
+            color: #2563eb;
+            animation: pulse 1.5s infinite;
+        }
+        .step-icon.success { background: #ecfdf5; color: #059669; }
+        .step-icon.error { background: #fef2f2; color: #dc2626; }
+        .step-icon.warning { background: #fffbeb; color: #d97706; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .step-text {
+            flex: 1;
+            font-size: 14px;
+            color: #334155;
+            line-height: 28px;
+        }
+
+        /* Result card */
+        .result-card {
+            margin-top: 16px;
+            padding: 16px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        .result-card.success {
+            background: #ecfdf5;
+            border: 1px solid #a7f3d0;
+        }
+        .result-card.error {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+        }
+        .result-card h3 { font-size: 16px; margin-bottom: 8px; }
+        .result-card.success h3 { color: #059669; }
+        .result-card.error h3 { color: #dc2626; }
+        .result-card p { font-size: 13px; color: #64748b; }
+
+        .btn-close {
+            display: block;
+            width: 100%;
+            margin-top: 16px;
+            padding: 12px;
+            border-radius: 10px;
+            border: none;
+            background: #2563eb;
+            color: #fff;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-close:hover { background: #1d4ed8; }
+
+        /* Initial state */
+        .init-message {
+            text-align: center;
+            padding: 40px 20px;
+            color: #64748b;
+        }
+        .init-message .spinner {
+            width: 40px; height: 40px;
+            border: 3px solid #e2e8f0;
+            border-top-color: #2563eb;
+            border-radius: 50%;
+            margin: 0 auto 16px;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .error-init {
+            text-align: center;
+            padding: 40px 20px;
+            color: #dc2626;
+        }
+        .error-init p { margin-top: 8px; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>ניוד מוצר מסלקה</h1>
+        <p>יצירת רשומות פיננסי, מעסיק בקופה וגוף מעביר</p>
+    </div>
+
+    <div class="content" id="content">
+        <div class="init-message" id="initMessage">
+            <div class="spinner"></div>
+            <p>מתחיל תהליך ניוד...</p>
+        </div>
+    </div>
+</div>
+
+<script>
+const params = new URLSearchParams(window.location.search);
+const productId = params.get("id");
+
+if (!productId) {
+    document.getElementById("content").innerHTML = `
+        <div class="error-init">
+            <div style="font-size:32px">⚠️</div>
+            <p>חסר מזהה מוצר מסלקה בכתובת</p>
+            <p style="color:#94a3b8;font-size:12px;margin-top:8px">
+                נדרש פרמטר <code>?id=XXX</code>
+            </p>
+        </div>
+    `;
+} else {
+    startTransfer(productId);
+}
+
+async function startTransfer(productId) {
+    const stepsContainer = document.createElement("div");
+    stepsContainer.id = "steps";
+
+    try {
+        const response = await fetch("/api/mislaka/transfer/execute", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ productId })
+        });
+
+        // Remove init message
+        document.getElementById("initMessage").remove();
+        document.getElementById("content").appendChild(stepsContainer);
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let hasError = false;
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+
+            for (const line of lines) {
+                if (!line.trim()) continue;
+                try {
+                    const update = JSON.parse(line);
+                    handleUpdate(update, stepsContainer);
+                    if (update.step === "error") hasError = true;
+                } catch {}
+            }
+        }
+
+        // If no done/error was received
+        if (!hasError && !document.querySelector(".result-card")) {
+            addResultCard(stepsContainer, false, "התהליך הסתיים ללא תשובה ברורה מהשרת");
+        }
+
+    } catch (err) {
+        document.getElementById("initMessage")?.remove();
+        document.getElementById("content").appendChild(stepsContainer);
+        addStep(stepsContainer, "error", err.message || "שגיאה בחיבור לשרת");
+        addResultCard(stepsContainer, false, err.message);
+    }
+}
+
+function handleUpdate(update, container) {
+    if (update.step === "done") {
+        try {
+            const result = JSON.parse(update.message);
+            addStep(container, "success", `הניוד הושלם: ${result.productName}`);
+            addResultCard(container, true, result.productName);
+        } catch {
+            addStep(container, "success", "הניוד הושלם בהצלחה");
+            addResultCard(container, true);
+        }
+    } else if (update.step === "error") {
+        addStep(container, "error", update.message);
+        addResultCard(container, false, update.message);
+    } else if (update.step === "warning") {
+        addStep(container, "warning", update.message);
+    } else {
+        // Regular step — update or add
+        const existingStep = container.querySelector(`[data-step="${update.step}"]`);
+        if (existingStep) {
+            existingStep.querySelector(".step-text").textContent = update.message;
+        } else {
+            addStep(container, "loading", update.message, update.step);
+        }
+    }
+
+    // Mark previous loading steps as success (except the current one)
+    const loadingIcons = container.querySelectorAll(".step-icon.loading");
+    loadingIcons.forEach((icon, i) => {
+        if (i < loadingIcons.length - 1 || update.step === "done" || update.step === "error") {
+            if (update.step === "error" && i === loadingIcons.length - 1) {
+                icon.classList.remove("loading");
+                icon.classList.add("error");
+                icon.textContent = "✕";
+            } else {
+                icon.classList.remove("loading");
+                icon.classList.add("success");
+                icon.textContent = "✓";
+            }
+        }
+    });
+}
+
+function addStep(container, type, message, stepId) {
+    const step = document.createElement("div");
+    step.className = "step";
+    if (stepId) step.setAttribute("data-step", stepId);
+
+    const icons = { loading: "⟳", success: "✓", error: "✕", warning: "⚠" };
+
+    step.innerHTML = `
+        <div class="step-icon ${type}">${icons[type] || "•"}</div>
+        <div class="step-text">${message}</div>
+    `;
+    container.appendChild(step);
+    container.scrollTop = container.scrollHeight;
+}
+
+function addResultCard(container, success, detail) {
+    const card = document.createElement("div");
+    card.className = `result-card ${success ? "success" : "error"}`;
+    card.innerHTML = `
+        <h3>${success ? "✓ הניוד בוצע בהצלחה" : "✕ הניוד נכשל"}</h3>
+        ${detail ? `<p>${success ? detail : detail}</p>` : ""}
+        <button class="btn-close" onclick="window.close()">סגור חלון</button>
+    `;
+    container.appendChild(card);
+}
+</script>
+
+</body>
+</html>
