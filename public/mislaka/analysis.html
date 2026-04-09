@@ -162,7 +162,7 @@ let DATA = [];
   mainEl.innerHTML = '<div style="text-align:center;padding:80px 24px;color:var(--muted)"><p style="font-size:1.2rem">⏳ טוען נתונים...</p></div>';
 
   try {
-    const res = await fetch(`/api/mislaka-data?id=${recordId}`);
+    const res = await fetch(`/api/mislaka/data?id=${recordId}`);
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.message || err.error || `שגיאה ${res.status}`);
