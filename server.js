@@ -49,7 +49,7 @@ app.use("/har-habituach", harHabituachRouter);
 app.get("/", (req, res) => {
     res.sendFile(path.join(__dirname, "public", "quotes", "index.html"));
 });
-app.use(express.static(path.join(__dirname, "public", "quotes")));
+app.use(express.static(path.join(__dirname, "public", "quotes"), { maxAge: 0, etag: false }));
 
 // Mislaka: /mislaka/dashboard.html, /mislaka/analysis.html (Fireberry only, except transfer)
 app.use("/mislaka", (req, res, next) => {
