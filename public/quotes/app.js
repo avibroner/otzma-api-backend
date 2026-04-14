@@ -886,7 +886,7 @@ function addFamilyMember() {
         name,
         id,
         relation: role,
-        birthDate: birthDateRaw, // 🔒 נשמר כ־string בלבד
+        birthDate: parseDDMMYYYYToSafeISO(birthDateRaw),
         tempId: "tmp_" + Date.now(),
         fromCRM: false
     };
