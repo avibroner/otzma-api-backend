@@ -66,6 +66,7 @@ router.post("/transfer/execute", async (req, res) => {
         const leadData = await getRequest(`/record/1003/${leadId}`);
         const lead = leadData?.data?.Record;
         const accountId = lead?.accountid || "";
+        const contactId = lead?.contactid || "";                 // מבוטח ראשי (אם יש)
         const agentId = lead?.ownerid || "";                     // סוכן
         const financialPlannerId = lead?.pcfsystemfield271 || ""; // מתכנן פיננסי
 
@@ -112,7 +113,7 @@ router.post("/transfer/execute", async (req, res) => {
         const financialName = [leadName, productTypeName].filter(Boolean).join(" - ");
         const financialPayload = {
             accountid: accountId,
-            // contacttid intentionally omitted — will be populated when customer/contact is created from lead
+            contacttid: contactId,                                 // לקוח בקופה (מבוטח)
             pcfCompany: product.pcfsystemfield115 || "",           // חברה
             pcfProduct: product.pcfsystemfield101 || "",           // מוצר
             pcfManagementFeeAccumulation: product.pcfsystemfield114 || 0, // דמ"נ מצבירה
