@@ -148,6 +148,11 @@ router.post("/transfer/execute", async (req, res) => {
 
         send({ step: "financial", message: "רשומת פיננסים נוצרה בהצלחה" });
 
+        // Link the new opportunity back to the mislaka product
+        await putRequest(`/record/1031/${productId}`, {
+            pcfsystemfield119: financialId, // פוליסה מקושרת
+        });
+
         // Step 5: Create employer in fund (1019) — if employer exists
         if (employerId) {
             send({ step: "employer_fund", message: "יוצר מעסיק בקופה..." });
