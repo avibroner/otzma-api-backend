@@ -2,6 +2,7 @@ const express = require("express");
 const path = require("path");
 const router = express.Router();
 const { postRequest, getRequest, putRequest } = require("../lib/fireberry");
+const { getProductName } = require("../lib/product-map");
 
 // GET /api/mislaka/transfer?id=XXX — serve the transfer UI page
 router.get("/transfer", (req, res) => {
@@ -105,6 +106,9 @@ router.post("/transfer/execute", async (req, res) => {
         send({ step: "financial", message: "יוצר רשומת פיננסים..." });
 
         const today = new Date().toISOString().split("T")[0];
+        const productTypeName = getProductName(product.pcfsystemfield101);
+        const leadName = lead?.name || "";
+        const financialName = [leadName, productTypeName].filter(Boolean).join(" - ");
         const financialPayload = {
             accountid: accountId,
             contacttid: contactId,
@@ -112,7 +116,6 @@ router.post("/transfer/execute", async (req, res) => {
             pcfProduct: product.pcfsystemfield101 || "",           // מוצר
             pcfManagementFeeAccumulation: product.pcfsystemfield114 || 0, // דמ"נ מצבירה
             pcfManagementFeeDeposit: product.pcfsystemfield113 || 0,     // דמ"נ מהפקדה
-            pcfOperationalStatus: "ניוד מסלקה",
             pcfsystemfield140: today,                              // תאריך מכירה
             pcfsystemfield137: leadId,                             // ליד מקושר
             pcfsystemfield148: mislaka.pcfsystemfield101 || "",    // ת.ז לקוח
@@ -120,7 +123,7 @@ router.post("/transfer/execute", async (req, res) => {
             pcfsystemfield115: product.pcfsystemfield105 || 0,     // הפקדה חודשית צפויה
             pcfsystemfield116: (parseFloat(product.pcfsystemfield105) || 0) * 12, // הפקדה שנתית צפויה
             pcfsystemfield107: product.pcfsystemfield111 || 0,     // ניוד צפוי (צבירה)
-            name: `ניוד מסלקה — ${productName}`,
+            name: `${financialName} (ניוד מסלקה)`,
         };
 
         // Remove empty values
