@@ -62,23 +62,14 @@ router.post("/transfer/execute", async (req, res) => {
             return res.end();
         }
 
-        // Get lead details for accountid
+        // Get lead details — mislaka flow starts from lead, not account
         const leadData = await getRequest(`/record/1003/${leadId}`);
         const lead = leadData?.data?.Record;
         const accountId = lead?.accountid || "";
-        const contactId = lead?.contactid || "";
+        const agentId = lead?.ownerid || "";        // TODO: confirm this is the agent field on lead
+        const financialPlannerId = "";               // TODO: which lead field is מתכנן פיננסי?
 
         send({ step: "loading", message: `ליד נמצא: ${lead?.name || leadId}` });
-
-        // Fetch account details to get owner (agent) and financial planner
-        let agentId = "";
-        let financialPlannerId = "";
-        if (accountId) {
-            const accountData = await getRequest(`/record/account/${accountId}`);
-            const account = accountData?.data?.Record;
-            agentId = account?.pcfsystemfield274 || "";
-            financialPlannerId = account?.ownerid || "";
-        }
 
         // Step 3: Find or create employer
         let employerId = "";
@@ -121,7 +112,7 @@ router.post("/transfer/execute", async (req, res) => {
         const financialName = [leadName, productTypeName].filter(Boolean).join(" - ");
         const financialPayload = {
             accountid: accountId,
-            contacttid: contactId,                                 // לקוח בקופה
+            // contacttid intentionally omitted — will be populated when customer/contact is created from lead
             pcfCompany: product.pcfsystemfield115 || "",           // חברה
             pcfProduct: product.pcfsystemfield101 || "",           // מוצר
             pcfManagementFeeAccumulation: product.pcfsystemfield114 || 0, // דמ"נ מצבירה
@@ -132,7 +123,7 @@ router.post("/transfer/execute", async (req, res) => {
             pcfsystemfield100: financialPlannerId,                 // מתכנן פיננסי (על opportunity)
             pcfsystemfield140: today,                              // תאריך מכירה
             pcfsystemfield137: leadId,                             // ליד מקושר
-            pcfsystemfield148: lead?.pcfsystemfield101 || mislaka.pcfsystemfield101 || "", // ת.ז לקוח
+            pcfsystemfield148: mislaka.pcfsystemfield101 || lead?.pcfsystemfield101 || "", // ת.ז לקוח (מסלקה יותר אמין)
             pcfKupaNumber: product.pcfsystemfield116 || "",        // מספר קופה
             pcfsystemfield115: product.pcfsystemfield105 || 0,     // הפקדה חודשית צפויה
             pcfsystemfield116: (parseFloat(product.pcfsystemfield105) || 0) * 12, // הפקדה שנתית צפויה
