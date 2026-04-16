@@ -66,8 +66,8 @@ router.post("/transfer/execute", async (req, res) => {
         const leadData = await getRequest(`/record/1003/${leadId}`);
         const lead = leadData?.data?.Record;
         const accountId = lead?.accountid || "";
-        const agentId = lead?.ownerid || "";        // TODO: confirm this is the agent field on lead
-        const financialPlannerId = "";               // TODO: which lead field is מתכנן פיננסי?
+        const agentId = lead?.ownerid || "";                     // סוכן
+        const financialPlannerId = lead?.pcfsystemfield271 || ""; // מתכנן פיננסי
 
         send({ step: "loading", message: `ליד נמצא: ${lead?.name || leadId}` });
 

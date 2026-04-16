@@ -227,6 +227,7 @@ router.post("/webhook", async (req, res) => {
 
             const payload = {
                 pcfsystemfield100: ID,                                      // קישור למסלקה
+                pcfLinkedLead: leadId || undefined,                         // קישור לליד
                 pcfsystemfield101: matchProduct(pol),                       // סוג מוצר (lookup)
                 pcfsystemfield102: mapStatus(pol["סטטוס"]),                 // סטטוס (picklist)
                 pcfsystemfield103: getInvestmentTrack(pol),                 // מסלול השקעה
