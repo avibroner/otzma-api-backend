@@ -111,7 +111,7 @@ router.post("/transfer/execute", async (req, res) => {
         const financialName = [leadName, productTypeName].filter(Boolean).join(" - ");
         const financialPayload = {
             accountid: accountId,
-            contacttid: contactId,
+            contactid: contactId,
             pcfCompany: product.pcfsystemfield115 || "",           // חברה
             pcfProduct: product.pcfsystemfield101 || "",           // מוצר
             pcfManagementFeeAccumulation: product.pcfsystemfield114 || 0, // דמ"נ מצבירה
@@ -139,9 +139,11 @@ router.post("/transfer/execute", async (req, res) => {
         }
 
         const financialResult = await postRequest("/record/opportunity", financialPayload);
-        const financialId = financialResult?.data?.id;
+        const financialId =
+            financialResult?.data?.Record?.opportunityid ||
+            financialResult?.data?.id;
 
-        if (!financialId) {
+        if (!financialResult?.success || !financialId) {
             send({ step: "error", message: `שגיאה ביצירת רשומת פיננסים: ${JSON.stringify(financialResult?.message || financialResult)}` });
             return res.end();
         }
