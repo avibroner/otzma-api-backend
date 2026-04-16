@@ -116,6 +116,7 @@ router.post("/transfer/execute", async (req, res) => {
             pcfProduct: product.pcfsystemfield101 || "",           // מוצר
             pcfManagementFeeAccumulation: product.pcfsystemfield114 || 0, // דמ"נ מצבירה
             pcfManagementFeeDeposit: product.pcfsystemfield113 || 0,     // דמ"נ מהפקדה
+            pcfOperationalStatus: 1,                               // סטטוס תפעולי (נשלח לעוצמה)
             pcfsystemfield140: today,                              // תאריך מכירה
             pcfsystemfield137: leadId,                             // ליד מקושר
             pcfsystemfield148: mislaka.pcfsystemfield101 || "",    // ת.ז לקוח
