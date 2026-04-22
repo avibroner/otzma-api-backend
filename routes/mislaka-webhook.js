@@ -163,26 +163,36 @@ function parseMislakaDate(dateStr) {
     return `${parts[2]}-${parts[1]}-${parts[0]}`;
 }
 
-// Read a numeric field from polisa; if empty/NaN, try a nested fallback path.
-// Returns a finite number (0 when nothing usable).
-function readFee(polisa, primaryKey, fallbackPath) {
+// Read a management-fee value for a polisa.
+// Primary source: top-level "דמנה״ל הפקדה"/"דמנה״ל צבירה" (expected to be a number).
+// Fallback: the nested "פירוט מבנה דמי ניהול" structure — either object or array —
+// where each entry carries a "סוג הוצאה" tag ("דמי ניהול מהפקדה" / "דמי ניהול מצבירה")
+// and a "שיעור דמי ניהול" number. We must match by סוג הוצאה, not take the first entry.
+function readFee(polisa, primaryKey, feeType) {
     const primary = parseFloat(polisa[primaryKey]);
-    if (Number.isFinite(primary) && primary !== 0) return primary;
-    if (fallbackPath && polisa[fallbackPath[0]]) {
-        const fallback = parseFloat(polisa[fallbackPath[0]][fallbackPath[1]]);
-        if (Number.isFinite(fallback)) return fallback;
+    if (Number.isFinite(primary)) return primary;
+
+    const feeStruct = polisa["פירוט מבנה דמי ניהול"];
+    if (!feeStruct || typeof feeStruct !== "object") return 0;
+
+    const items = Array.isArray(feeStruct) ? feeStruct : Object.values(feeStruct);
+    for (const item of items) {
+        if (item && item["סוג הוצאה"] === feeType) {
+            const val = parseFloat(item["שיעור דמי ניהול"]);
+            if (Number.isFinite(val)) return val;
+        }
     }
-    return Number.isFinite(primary) ? primary : 0;
+    return 0;
 }
 
-// Sum deposit/savings per product category across active polisot
+// Sum deposit/savings per product category across all polisot (active + inactive),
+// matching the behaviour of the overall "סך הפקדות" / "סך צבירות" lead fields.
 function buildLeadSummaries(polisot) {
     const totals = {
         deposit: { gemel: 0, hishtalmut: 0, pensia: 0, life: 0 },
         savings: { gemel: 0, hishtalmut: 0, pensia: 0 },
     };
     for (const pol of polisot) {
-        if (pol["סטטוס"] !== "פעיל") continue;
         const category = classifyProduct(pol);
         if (!category) continue;
         const deposit = parseFloat(pol["הפקדה אחרונה סה״כ"]) || 0;
@@ -320,8 +330,8 @@ router.post("/webhook", async (req, res) => {
                 pcfsystemfield110: getEmployerName(pol),                    // מעסיק
                 pcfsystemfield111: parseFloat(pol["סך חיסכון"]) || 0,      // צבירה
                 pcfsystemfield112: parseFloat(pol["סה״כ יתרה עתידית"]) || 0, // יתרה עתידית
-                pcfsystemfield113: readFee(pol, "דמנה״ל הפקדה", ["פירוט מבנה דמי ניהול", "שיעור דמי ניהול"]), // דמ"נ מהפקדה
-                pcfsystemfield114: readFee(pol, "דמנה״ל צבירה", ["פירוט מבנה דמי ניהול", "סך דמי ניהול למסלול"]), // דמ"נ מצבירה
+                pcfsystemfield113: readFee(pol, "דמנה״ל הפקדה", "דמי ניהול מהפקדה"), // דמ"נ מהפקדה
+                pcfsystemfield114: readFee(pol, "דמנה״ל צבירה", "דמי ניהול מצבירה"), // דמ"נ מצבירה
                 pcfsystemfield115: matchCompany(pol["יצרן"]),               // חברה (lookup)
                 pcfsystemfield116: pol["מספר פוליסה"] || "",               // מספר קופה/פוליסה
                 pcfsystemfield117: parseFloat(pol["שכר מדווח להפקדה עפ\"י נתוני יצרן"]) || 0, // שכר
