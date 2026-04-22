@@ -129,13 +129,28 @@ body { font-family:'Segoe UI',Tahoma,sans-serif; background:var(--bg); color:var
 
   /* Hide UI chrome that doesn't belong in a printed report */
   .tab-bar, .selector-bar, .print-btn, .footer, ::-webkit-scrollbar { display:none !important; }
-  /* Also hide the detailed per-policy accordion section entirely — it explodes into 10+ pages */
-  .section:last-of-type { display:none !important; }
 
   /* Keep section titles visible but drop the clickable toggle arrow */
   .section-head { cursor:default !important; padding:6px 10px !important; background:var(--card2) !important; }
   .section-head h3 { font-size:0.85rem !important; }
   .section-head .toggle { display:none !important; }
+
+  /* Detailed per-policy section — start on a new page, each policy on its own page */
+  .section:last-of-type { page-break-before:always; break-before:page; }
+  .pol-acc { page-break-inside:avoid; break-inside:avoid; margin-bottom:0 !important; }
+  .pol-acc + .pol-acc { page-break-before:always; break-before:page; }
+  .pol-acc-head { background:var(--card2) !important; padding:8px 12px !important; }
+  .pol-acc-head .ph-name { font-size:0.9rem !important; }
+  .pol-acc-body { padding:8px !important; }
+
+  /* Detail tables — fit landscape width */
+  .sub-title { font-size:0.75rem !important; margin-bottom:4px !important; }
+  .dtable { font-size:0.65rem !important; }
+  .dtable thead th { padding:3px 4px !important; font-size:0.65rem !important; }
+  .dtable tbody td { padding:2px 4px !important; }
+  .cover-card { padding:8px 10px !important; margin-bottom:6px !important; }
+  .cover-card .cc-title { font-size:0.75rem !important; margin-bottom:4px !important; padding-bottom:4px !important; }
+  .sub-section { margin-top:6px !important; }
 
   /* Sticky positioning breaks print layout */
   .header, .tab-bar, .selector-bar { position:static !important; }
