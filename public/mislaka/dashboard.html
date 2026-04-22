@@ -121,36 +121,52 @@ body { font-family:'Segoe UI',Tahoma,sans-serif; background:var(--bg); color:var
     --accent:#0369a1; --accent2:#6d28d9; --accent3:#047857; --accent4:#c2410c; --accent5:#be185d;
     --danger:#b91c1c; --success:#15803d; --warning:#a16207;
   }
-  body { background:#fff !important; color:#0f172a !important; }
+  body { background:#fff !important; color:#0f172a !important; font-size:10px; }
   * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
 
-  @page { size:A4; margin:12mm; }
+  @page { size:A4 landscape; margin:8mm; }
 
   /* Hide UI chrome that doesn't belong in a printed report */
-  .tab-bar, .selector-bar, .print-btn, .footer, ::-webkit-scrollbar { display:none !important; }
+  .tab-bar, .selector-bar, .print-btn, .footer, .section > .section-head, ::-webkit-scrollbar { display:none !important; }
+  /* Also hide the detailed per-policy accordion section entirely — it explodes into 10+ pages */
+  .section:last-of-type { display:none !important; }
 
   /* Sticky positioning breaks print layout */
   .header, .tab-bar, .selector-bar { position:static !important; }
 
   /* Our own printed header */
-  .print-header { display:block !important; border-bottom:2px solid var(--accent); padding:0 0 8px; margin-bottom:14px; }
-  .print-header .ph-title { font-size:1.3rem; font-weight:700; color:var(--accent); }
-  .print-header .ph-meta { font-size:0.85rem; color:var(--muted); margin-top:2px; }
+  .print-header { display:block !important; border-bottom:2px solid var(--accent); padding:0 0 4px; margin-bottom:8px; }
+  .print-header .ph-title { font-size:1.05rem; font-weight:700; color:var(--accent); }
+  .print-header .ph-meta { font-size:0.7rem; color:var(--muted); margin-top:1px; }
 
-  /* The top gradient header — keep brand, drop gradients/colors */
-  .header { background:none !important; padding:8px 0 !important; border-bottom:1px solid var(--border); }
-  .header h1 { background:none !important; -webkit-text-fill-color:var(--accent) !important; color:var(--accent) !important; font-size:1.4rem; }
+  /* The top gradient header — hide in print, the print-header replaces it */
+  .header { display:none !important; }
 
   /* Force-open all collapsible sections */
-  .section-body, .pol-acc-body { display:block !important; }
-  .section-head { cursor:default; }
-  .section-head .toggle { display:none; }
+  .section-body, .pol-acc-body { display:block !important; padding:4px 6px !important; }
+  .section { border:1px solid var(--border); margin-bottom:6px; }
 
-  /* Prevent awkward page breaks */
-  .pcard, .pol-acc, .chart-box, .kpi, .cover-card, .section { break-inside:avoid; page-break-inside:avoid; }
-  .section { border:1px solid var(--border); }
-  .dtable { page-break-inside:auto; }
-  .dtable tr { page-break-inside:avoid; page-break-after:auto; }
+  /* Denser grid — 3-4 cards per row in landscape */
+  .cards-grid { grid-template-columns:repeat(3, 1fr) !important; gap:6px !important; }
+  .client-cards { grid-template-columns:repeat(2, 1fr) !important; gap:8px !important; }
+
+  /* KPI strip — tighter */
+  .kpi-strip { grid-template-columns:repeat(6, 1fr) !important; gap:4px !important; margin-bottom:8px !important; }
+  .kpi { padding:6px !important; }
+  .kpi .val { font-size:0.95rem !important; }
+  .kpi .lbl { font-size:0.65rem !important; }
+
+  /* Cards — tight padding + smaller fonts */
+  .pcard { padding:8px 10px !important; font-size:0.72rem; }
+  .pcard-title { font-size:0.82rem !important; margin-bottom:2px !important; }
+  .pcard-subtitle { font-size:0.65rem !important; margin-bottom:4px !important; padding-bottom:4px !important; }
+  .pcard-row { padding:1px 0 !important; font-size:0.7rem !important; gap:6px !important; }
+  .pcard-divider { margin:4px 0 !important; }
+  .pcard-section-label { font-size:0.65rem !important; margin:3px 0 1px !important; }
+  .pcard-track { padding:1px 0 !important; font-size:0.65rem !important; }
+
+  /* Prevent awkward page breaks inside a single card */
+  .pcard, .chart-box, .cover-card { break-inside:avoid; page-break-inside:avoid; }
 
   /* Main padding tighter for print */
   .main { padding:0 !important; max-width:none !important; }
