@@ -127,9 +127,14 @@ body { font-family:'Segoe UI',Tahoma,sans-serif; background:var(--bg); color:var
   @page { size:A4 landscape; margin:8mm; }
 
   /* Hide UI chrome that doesn't belong in a printed report */
-  .tab-bar, .selector-bar, .print-btn, .footer, .section > .section-head, ::-webkit-scrollbar { display:none !important; }
+  .tab-bar, .selector-bar, .print-btn, .footer, ::-webkit-scrollbar { display:none !important; }
   /* Also hide the detailed per-policy accordion section entirely — it explodes into 10+ pages */
   .section:last-of-type { display:none !important; }
+
+  /* Keep section titles visible but drop the clickable toggle arrow */
+  .section-head { cursor:default !important; padding:6px 10px !important; background:var(--card2) !important; }
+  .section-head h3 { font-size:0.85rem !important; }
+  .section-head .toggle { display:none !important; }
 
   /* Sticky positioning breaks print layout */
   .header, .tab-bar, .selector-bar { position:static !important; }
@@ -171,8 +176,11 @@ body { font-family:'Segoe UI',Tahoma,sans-serif; background:var(--bg); color:var
   /* Main padding tighter for print */
   .main { padding:0 !important; max-width:none !important; }
 
-  /* Hide charts in print — Chart.js canvases often render poorly in PDF */
-  .charts-row { display:none !important; }
+  /* Charts — keep both side by side, cap their height so they don't hog pages */
+  .charts-row { grid-template-columns:1fr 1fr !important; gap:8px !important; margin-bottom:8px !important; }
+  .chart-box { padding:6px 8px !important; }
+  .chart-box h4 { font-size:0.75rem !important; margin-bottom:4px !important; }
+  .chart-box canvas { max-height:180px !important; }
 }
 </style>
 </head>
