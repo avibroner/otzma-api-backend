@@ -30,15 +30,15 @@ const COMPANY_MAP = {
 const STATUS_MAP = { "פעיל": "1", "לא פעיל": "2", "לא רלוונטי": "3" };
 const ACCOUNT_TYPE_MAP = { "שכיר": "1", "עצמאי": "2", "פרט": "3" };
 
-// --- Lead field IDs (new fields — to be filled with real Fireberry IDs before prod) ---
+// --- Lead field IDs for per-category summaries on object 1003 ---
 const LEAD_FIELDS = {
-    DEPOSIT_GEMEL:      "TODO_pcfsystemfield_XXX", // הפקדה לגמל
-    DEPOSIT_HISHTALMUT: "TODO_pcfsystemfield_XXX", // הפקדה להשתלמות
-    DEPOSIT_PENSIA:     "TODO_pcfsystemfield_XXX", // הפקדה לפנסיה
-    DEPOSIT_LIFE:       "TODO_pcfsystemfield_XXX", // הפקדה לביטוח חיים
-    SAVINGS_GEMEL:      "TODO_pcfsystemfield_XXX", // צבירה לגמל
-    SAVINGS_HISHTALMUT: "TODO_pcfsystemfield_XXX", // צבירה להשתלמות
-    SAVINGS_PENSIA:     "TODO_pcfsystemfield_XXX", // צבירה לפנסיה
+    DEPOSIT_GEMEL:      "pcfsystemfield567", // הפקדה לגמל
+    DEPOSIT_HISHTALMUT: "pcfsystemfield568", // הפקדה להשתלמות
+    DEPOSIT_PENSIA:     "pcfsystemfield569", // הפקדה לפנסיה
+    DEPOSIT_LIFE:       "pcfsystemfield570", // הפקדה לביטוח חיים
+    SAVINGS_GEMEL:      "pcfsystemfield571", // צבירה לגמל
+    SAVINGS_HISHTALMUT: "pcfsystemfield572", // צבירה להשתלמות
+    SAVINGS_PENSIA:     "pcfsystemfield573", // צבירה לפנסיה
 };
 
 // Classify a polisa into one of: gemel | hishtalmut | pensia | life | null
@@ -270,11 +270,6 @@ router.post("/webhook", async (req, res) => {
 
             if (powerOfAttorneyLines.length > 0) {
                 leadUpdate.pcfsystemfield564 = powerOfAttorneyLines.join("\n"); // מיופי כוח
-            }
-
-            // Don't send placeholder IDs to Fireberry — strip them until real IDs are provided
-            for (const key of Object.keys(leadUpdate)) {
-                if (key.startsWith("TODO_")) delete leadUpdate[key];
             }
 
             // Remove empty values
