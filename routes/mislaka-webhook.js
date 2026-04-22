@@ -30,6 +30,29 @@ const COMPANY_MAP = {
 const STATUS_MAP = { "פעיל": "1", "לא פעיל": "2", "לא רלוונטי": "3" };
 const ACCOUNT_TYPE_MAP = { "שכיר": "1", "עצמאי": "2", "פרט": "3" };
 
+// --- Lead field IDs (new fields — to be filled with real Fireberry IDs before prod) ---
+const LEAD_FIELDS = {
+    DEPOSIT_GEMEL:      "TODO_pcfsystemfield_XXX", // הפקדה לגמל
+    DEPOSIT_HISHTALMUT: "TODO_pcfsystemfield_XXX", // הפקדה להשתלמות
+    DEPOSIT_PENSIA:     "TODO_pcfsystemfield_XXX", // הפקדה לפנסיה
+    DEPOSIT_LIFE:       "TODO_pcfsystemfield_XXX", // הפקדה לביטוח חיים
+    SAVINGS_GEMEL:      "TODO_pcfsystemfield_XXX", // צבירה לגמל
+    SAVINGS_HISHTALMUT: "TODO_pcfsystemfield_XXX", // צבירה להשתלמות
+    SAVINGS_PENSIA:     "TODO_pcfsystemfield_XXX", // צבירה לפנסיה
+};
+
+// Classify a polisa into one of: gemel | hishtalmut | pensia | life | null
+function classifyProduct(polisa) {
+    const type = polisa["סוג מוצר"] || "";
+    if (!type) return null;
+    if (type.includes("השתלמות")) return "hishtalmut";
+    if (type.includes("פנסיה"))   return "pensia";
+    if (type.includes("גמל") || type.includes("190")) return "gemel";
+    if (type.includes("ביטוח חיים") || type.includes("מנהלים") ||
+        type.includes("סיכון") || type.includes("חיסכון")) return "life";
+    return null;
+}
+
 // Match יצרן name from mislaka to Fireberry company ID (fuzzy contains)
 function matchCompany(yatzranName) {
     if (!yatzranName) return "";
@@ -47,14 +70,19 @@ function matchCompany(yatzranName) {
 function matchProduct(polisa) {
     const type = polisa["סוג מוצר"] || "";
     const pensionType = polisa["סוג קרן פנסיה"] || "";
+    const planName = polisa["שם תוכנית"] || "";
 
-    // Specific pension types first
-    if (type.includes("פנסיה") && pensionType === "מקיפה") return PRODUCT_MAP["פנסיה מקיפה"];
-    if (type.includes("פנסיה") && pensionType === "משלימה") return PRODUCT_MAP["פנסיה משלימה"];
-    if (type.includes("פנסיה")) return PRODUCT_MAP["קרן פנסיה"];
+    // Pension — always resolve to מקיפה or משלימה (no generic "קרן פנסיה" fallback)
+    if (type.includes("פנסיה")) {
+        if (pensionType === "מקיפה" || planName.includes("מקיפה")) return PRODUCT_MAP["פנסיה מקיפה"];
+        if (pensionType === "משלימה" || planName.includes("משלימה")) return PRODUCT_MAP["פנסיה משלימה"];
+        console.warn("Pension sub-type missing, defaulting to מקיפה:", { type, pensionType, planName });
+        return PRODUCT_MAP["פנסיה מקיפה"];
+    }
 
     // Try exact match first, then contains
     for (const [name, id] of Object.entries(PRODUCT_MAP)) {
+        if (name === "קרן פנסיה") continue; // never return legacy generic pension id
         if (type.includes(name) || name.includes(type)) return id;
     }
 
@@ -82,12 +110,25 @@ function mapAccountType(polisa) {
     return ACCOUNT_TYPE_MAP[accountType] || "";
 }
 
-// Get investment track name from polisa
+// Get investment track name from polisa.
+// Single track → track name only.
+// Multiple tracks → "name — ₪amount | name — ₪amount" with amounts rounded to ₪.
 function getInvestmentTrack(polisa) {
     const tracks = polisa["פירוט מסלולי השקעה"];
     if (!tracks) return "";
-    if (Array.isArray(tracks)) return tracks[0]?.["שם מסלול"] || "";
-    return tracks["שם מסלול"] || "";
+    if (!Array.isArray(tracks)) return tracks["שם מסלול"] || "";
+    if (tracks.length === 0) return "";
+    if (tracks.length === 1) return tracks[0]?.["שם מסלול"] || "";
+    return tracks
+        .map(t => {
+            const name = t?.["שם מסלול"] || "";
+            const amount = Math.round(parseFloat(t?.["סכום צבירה במסלול"]) || 0);
+            if (!name) return "";
+            if (!amount) return name;
+            return `${name} — ₪${amount.toLocaleString("he-IL")}`;
+        })
+        .filter(Boolean)
+        .join(" | ");
 }
 
 // Get contribution percentage (sum of all הפרשות)
@@ -120,6 +161,36 @@ function parseMislakaDate(dateStr) {
     const parts = dateStr.split("-");
     if (parts.length !== 3) return "";
     return `${parts[2]}-${parts[1]}-${parts[0]}`;
+}
+
+// Read a numeric field from polisa; if empty/NaN, try a nested fallback path.
+// Returns a finite number (0 when nothing usable).
+function readFee(polisa, primaryKey, fallbackPath) {
+    const primary = parseFloat(polisa[primaryKey]);
+    if (Number.isFinite(primary) && primary !== 0) return primary;
+    if (fallbackPath && polisa[fallbackPath[0]]) {
+        const fallback = parseFloat(polisa[fallbackPath[0]][fallbackPath[1]]);
+        if (Number.isFinite(fallback)) return fallback;
+    }
+    return Number.isFinite(primary) ? primary : 0;
+}
+
+// Sum deposit/savings per product category across active polisot
+function buildLeadSummaries(polisot) {
+    const totals = {
+        deposit: { gemel: 0, hishtalmut: 0, pensia: 0, life: 0 },
+        savings: { gemel: 0, hishtalmut: 0, pensia: 0 },
+    };
+    for (const pol of polisot) {
+        if (pol["סטטוס"] !== "פעיל") continue;
+        const category = classifyProduct(pol);
+        if (!category) continue;
+        const deposit = parseFloat(pol["הפקדה אחרונה סה״כ"]) || 0;
+        const savings = parseFloat(pol["סך חיסכון"]) || 0;
+        totals.deposit[category] += deposit;
+        if (category !== "life") totals.savings[category] += savings;
+    }
+    return totals;
 }
 
 // POST /api/mislaka/webhook
@@ -178,6 +249,8 @@ router.post("/webhook", async (req, res) => {
                 }
             }
 
+            const summaries = buildLeadSummaries(polisot);
+
             const leadUpdate = {
                 name: `${client["שם פרטי"] || ""} ${client["שם משפחה"] || ""}`.trim(),
                 pcfsystemfield101: client["מספר זיהוי לקוח"] || "",        // ת.ז
@@ -186,10 +259,22 @@ router.post("/webhook", async (req, res) => {
                 pcfsystemfield531: client["רחוב"] ? `${client["רחוב"]} ${client["מספר בית"] || ""}`.trim() : "", // רחוב
                 pcfsystemfield562: totalMonthly,                            // סך הפקדות
                 pcfsystemfield563: totalAccumulation,                       // סך צבירות
+                [LEAD_FIELDS.DEPOSIT_GEMEL]:      summaries.deposit.gemel,
+                [LEAD_FIELDS.DEPOSIT_HISHTALMUT]: summaries.deposit.hishtalmut,
+                [LEAD_FIELDS.DEPOSIT_PENSIA]:     summaries.deposit.pensia,
+                [LEAD_FIELDS.DEPOSIT_LIFE]:       summaries.deposit.life,
+                [LEAD_FIELDS.SAVINGS_GEMEL]:      summaries.savings.gemel,
+                [LEAD_FIELDS.SAVINGS_HISHTALMUT]: summaries.savings.hishtalmut,
+                [LEAD_FIELDS.SAVINGS_PENSIA]:     summaries.savings.pensia,
             };
 
             if (powerOfAttorneyLines.length > 0) {
                 leadUpdate.pcfsystemfield564 = powerOfAttorneyLines.join("\n"); // מיופי כוח
+            }
+
+            // Don't send placeholder IDs to Fireberry — strip them until real IDs are provided
+            for (const key of Object.keys(leadUpdate)) {
+                if (key.startsWith("TODO_")) delete leadUpdate[key];
             }
 
             // Remove empty values
@@ -240,8 +325,8 @@ router.post("/webhook", async (req, res) => {
                 pcfsystemfield110: getEmployerName(pol),                    // מעסיק
                 pcfsystemfield111: parseFloat(pol["סך חיסכון"]) || 0,      // צבירה
                 pcfsystemfield112: parseFloat(pol["סה״כ יתרה עתידית"]) || 0, // יתרה עתידית
-                pcfsystemfield113: parseFloat(pol["דמנה״ל הפקדה"]) || 0,   // דמ"נ מהפקדה
-                pcfsystemfield114: parseFloat(pol["דמנה״ל צבירה"]) || 0,   // דמ"נ מצבירה
+                pcfsystemfield113: readFee(pol, "דמנה״ל הפקדה", ["פירוט מבנה דמי ניהול", "שיעור דמי ניהול"]), // דמ"נ מהפקדה
+                pcfsystemfield114: readFee(pol, "דמנה״ל צבירה", ["פירוט מבנה דמי ניהול", "סך דמי ניהול למסלול"]), // דמ"נ מצבירה
                 pcfsystemfield115: matchCompany(pol["יצרן"]),               // חברה (lookup)
                 pcfsystemfield116: pol["מספר פוליסה"] || "",               // מספר קופה/פוליסה
                 pcfsystemfield117: parseFloat(pol["שכר מדווח להפקדה עפ\"י נתוני יצרן"]) || 0, // שכר

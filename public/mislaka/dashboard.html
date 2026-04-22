@@ -106,6 +106,58 @@ body { font-family:'Segoe UI',Tahoma,sans-serif; background:var(--bg); color:var
 ::-webkit-scrollbar-thumb { background:var(--dim); border-radius:3px; }
 
 @media(max-width:800px) { .charts-row,.cards-grid,.client-cards { grid-template-columns:1fr; } }
+
+/* Export/print button */
+.print-btn { padding:8px 18px; border-radius:8px; border:1px solid var(--accent); background:transparent; color:var(--accent); cursor:pointer; font-size:0.9rem; font-family:inherit; font-weight:600; transition:all .2s; }
+.print-btn:hover { background:var(--accent); color:var(--bg); }
+
+.print-header { display:none; }
+
+@media print {
+  /* Force light background for readable PDF */
+  :root {
+    --bg:#ffffff; --card:#ffffff; --card2:#f8fafc; --hover:#f1f5f9;
+    --border:#cbd5e1; --text:#0f172a; --muted:#475569; --dim:#64748b;
+    --accent:#0369a1; --accent2:#6d28d9; --accent3:#047857; --accent4:#c2410c; --accent5:#be185d;
+    --danger:#b91c1c; --success:#15803d; --warning:#a16207;
+  }
+  body { background:#fff !important; color:#0f172a !important; }
+  * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+
+  @page { size:A4; margin:12mm; }
+
+  /* Hide UI chrome that doesn't belong in a printed report */
+  .tab-bar, .selector-bar, .print-btn, .footer, ::-webkit-scrollbar { display:none !important; }
+
+  /* Sticky positioning breaks print layout */
+  .header, .tab-bar, .selector-bar { position:static !important; }
+
+  /* Our own printed header */
+  .print-header { display:block !important; border-bottom:2px solid var(--accent); padding:0 0 8px; margin-bottom:14px; }
+  .print-header .ph-title { font-size:1.3rem; font-weight:700; color:var(--accent); }
+  .print-header .ph-meta { font-size:0.85rem; color:var(--muted); margin-top:2px; }
+
+  /* The top gradient header — keep brand, drop gradients/colors */
+  .header { background:none !important; padding:8px 0 !important; border-bottom:1px solid var(--border); }
+  .header h1 { background:none !important; -webkit-text-fill-color:var(--accent) !important; color:var(--accent) !important; font-size:1.4rem; }
+
+  /* Force-open all collapsible sections */
+  .section-body, .pol-acc-body { display:block !important; }
+  .section-head { cursor:default; }
+  .section-head .toggle { display:none; }
+
+  /* Prevent awkward page breaks */
+  .pcard, .pol-acc, .chart-box, .kpi, .cover-card, .section { break-inside:avoid; page-break-inside:avoid; }
+  .section { border:1px solid var(--border); }
+  .dtable { page-break-inside:auto; }
+  .dtable tr { page-break-inside:avoid; page-break-after:auto; }
+
+  /* Main padding tighter for print */
+  .main { padding:0 !important; max-width:none !important; }
+
+  /* Hide charts in print — Chart.js canvases often render poorly in PDF */
+  .charts-row { display:none !important; }
+}
 </style>
 </head>
 <body>
@@ -118,11 +170,17 @@ body { font-family:'Segoe UI',Tahoma,sans-serif; background:var(--bg); color:var
 <div class="tab-bar">
   <a href="dashboard.html" class="tab-link active">📄 תצוגת נתונים</a>
   <a href="analysis.html" class="tab-link">🔍 ניתוח והמלצות</a>
+  <button class="print-btn" style="margin:6px 16px;" onclick="window.print()">🖨️ ייצוא PDF</button>
 </div>
 
 <div class="selector-bar">
   <div id="clientInfo" style="font-size:1.15rem;font-weight:600;color:var(--accent);"></div>
   <select id="clientSelect" style="display:none"></select>
+</div>
+
+<div class="print-header">
+  <div class="ph-title">עוצמה ביטוח — דוח מסלקה פנסיונית</div>
+  <div class="ph-meta" id="printHeaderMeta"></div>
 </div>
 
 <div class="main" id="main"></div>
@@ -634,6 +692,15 @@ render();
     a.href = url.toString();
   });
 })();
+
+// Fill print-header with current client + today's date before print dialog opens
+window.addEventListener('beforeprint', () => {
+  const meta = document.getElementById('printHeaderMeta');
+  if (!meta) return;
+  const clientText = (document.getElementById('clientInfo')?.innerText || '').trim();
+  const today = new Date().toLocaleDateString('he-IL');
+  meta.textContent = `${clientText} · הודפס בתאריך ${today}`;
+});
 
 </script>
 </body>
