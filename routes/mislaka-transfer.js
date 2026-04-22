@@ -2,11 +2,61 @@ const express = require("express");
 const path = require("path");
 const router = express.Router();
 const { postRequest, getRequest, putRequest } = require("../lib/fireberry");
-const { getProductName } = require("../lib/product-map");
+const { getProductName, PRODUCT_MAP } = require("../lib/product-map");
 
 // GET /api/mislaka/transfer?id=XXX — serve the transfer UI page
 router.get("/transfer", (req, res) => {
     res.sendFile(path.join(__dirname, "..", "public", "mislaka", "transfer.html"));
+});
+
+// GET /api/mislaka/transfer/init?id=XXX — load product + companies for the form
+router.get("/transfer/init", async (req, res) => {
+    try {
+        const productId = req.query.id;
+        if (!productId) {
+            return res.status(400).json({ success: false, message: "חסר מזהה מוצר מסלקה" });
+        }
+
+        const [productData, companiesData] = await Promise.all([
+            getRequest(`/record/1031/${productId}`),
+            postRequest("/query", {
+                objecttype: 1016,
+                fields: "customobject1016id,name",
+                query: "",
+                pageSize: 500,
+            }),
+        ]);
+
+        const product = productData?.data?.Record;
+        if (!product) {
+            return res.status(404).json({ success: false, message: "לא נמצא מוצר מסלקה" });
+        }
+
+        const companies = (companiesData?.data?.Data || [])
+            .map((c) => ({ id: c.customobject1016id, name: c.name }))
+            .filter((c) => c.id && c.name)
+            .sort((a, b) => a.name.localeCompare(b.name, "he"));
+
+        const productTypes = Object.entries(PRODUCT_MAP).map(([name, id]) => ({ id, name }));
+
+        res.json({
+            success: true,
+            product: {
+                name: product.name || product.pcfsystemfield118 || "מוצר",
+                managementFeeDeposit: product.pcfsystemfield113 ?? 0,
+                managementFeeAccumulation: product.pcfsystemfield114 ?? 0,
+                companyId: product.pcfsystemfield115 || "",
+                employerName: product.pcfsystemfield110 || "",
+                productTypeId: product.pcfsystemfield101 || "",
+                monthlyDeposit: product.pcfsystemfield105 ?? 0,
+            },
+            companies,
+            productTypes,
+        });
+    } catch (err) {
+        console.error("Mislaka transfer init error:", err);
+        res.status(500).json({ success: false, message: err.message || "שגיאה בטעינת נתוני הטופס" });
+    }
 });
 
 // POST /api/mislaka/transfer/execute — run the transfer process (streaming response)
@@ -21,10 +71,36 @@ router.post("/transfer/execute", async (req, res) => {
     };
 
     try {
-        const { productId } = req.body || {};
+        const {
+            productId,
+            managementFeeDeposit,
+            managementFeeAccumulation,
+            companyId,
+            sameEmployer = true,
+            newEmployerName = "",
+            newEmployerTaxId = "",
+            sameProduct = true,
+            newProductId = "",
+            sameDeposit = true,
+            newMonthlyDeposit,
+        } = req.body || {};
 
         if (!productId) {
             send({ step: "error", message: "חסר מזהה מוצר מסלקה" });
+            return res.end();
+        }
+
+        // Form validation
+        if (sameEmployer === false && !newEmployerName.trim()) {
+            send({ step: "error", message: "נבחר מעסיק חדש אך לא הוזן שם מעסיק" });
+            return res.end();
+        }
+        if (sameProduct === false && !newProductId) {
+            send({ step: "error", message: "נבחר מוצר חדש אך לא נבחר סוג מוצר" });
+            return res.end();
+        }
+        if (sameDeposit === false && (newMonthlyDeposit === undefined || newMonthlyDeposit === null || newMonthlyDeposit === "")) {
+            send({ step: "error", message: "נבחרה הפקדה חדשה אך לא הוזן סכום" });
             return res.end();
         }
 
@@ -74,7 +150,10 @@ router.post("/transfer/execute", async (req, res) => {
 
         // Step 3: Find or create employer
         let employerId = "";
-        const employerName = product.pcfsystemfield110 || "";
+        const employerName = sameEmployer
+            ? (product.pcfsystemfield110 || "")
+            : newEmployerName.trim();
+        const employerTaxId = sameEmployer ? "" : (newEmployerTaxId || "").trim();
 
         if (employerName) {
             send({ step: "employer", message: `מחפש מעסיק: ${employerName}...` });
@@ -82,19 +161,33 @@ router.post("/transfer/execute", async (req, res) => {
             // Search existing employer by name
             const employerSearch = await postRequest("/query", {
                 objecttype: 1018,
-                fields: "customobject1018id,name",
+                fields: "customobject1018id,name,pcfCompanyNumber",
                 query: `name = '${employerName.replace(/'/g, "\\'")}'`
             });
 
             const existingEmployers = employerSearch?.data?.Data || [];
             if (existingEmployers.length > 0) {
-                employerId = existingEmployers[0].customobject1018id;
+                const existing = existingEmployers[0];
+                employerId = existing.customobject1018id;
                 send({ step: "employer", message: `מעסיק נמצא: ${employerName}` });
+
+                // Backfill tax ID if the agent supplied one and existing record is missing it
+                if (employerTaxId && !existing.pcfCompanyNumber) {
+                    try {
+                        await putRequest(`/record/1018/${employerId}`, {
+                            pcfCompanyNumber: employerTaxId,
+                        });
+                        send({ step: "employer", message: `ח.פ עודכן על המעסיק הקיים` });
+                    } catch (e) {
+                        send({ step: "warning", message: `שגיאה בעדכון ח.פ על מעסיק קיים` });
+                    }
+                }
             } else {
                 send({ step: "employer", message: `יוצר מעסיק חדש: ${employerName}...` });
-                const newEmployer = await postRequest("/record/1018", {
-                    name: employerName,
-                });
+                const employerPayload = { name: employerName };
+                if (employerTaxId) employerPayload.pcfCompanyNumber = employerTaxId;
+
+                const newEmployer = await postRequest("/record/1018", employerPayload);
                 employerId = newEmployer?.data?.id || "";
                 if (employerId) {
                     send({ step: "employer", message: `מעסיק נוצר בהצלחה` });
@@ -108,16 +201,30 @@ router.post("/transfer/execute", async (req, res) => {
         send({ step: "financial", message: "יוצר רשומת פיננסים..." });
 
         const today = new Date().toISOString().split("T")[0];
-        const productTypeName = getProductName(product.pcfsystemfield101);
+        const effectiveProductTypeId = sameProduct
+            ? (product.pcfsystemfield101 || "")
+            : newProductId;
+        const effectiveCompanyId = companyId || product.pcfsystemfield115 || "";
+        const effectiveMonthlyDeposit = sameDeposit
+            ? (parseFloat(product.pcfsystemfield105) || 0)
+            : (parseFloat(newMonthlyDeposit) || 0);
+        const effectiveMgmtFeeDeposit = managementFeeDeposit !== undefined && managementFeeDeposit !== ""
+            ? parseFloat(managementFeeDeposit) || 0
+            : (parseFloat(product.pcfsystemfield113) || 0);
+        const effectiveMgmtFeeAccumulation = managementFeeAccumulation !== undefined && managementFeeAccumulation !== ""
+            ? parseFloat(managementFeeAccumulation) || 0
+            : (parseFloat(product.pcfsystemfield114) || 0);
+
+        const productTypeName = getProductName(effectiveProductTypeId);
         const leadName = lead?.name || "";
         const financialName = [leadName, productTypeName].filter(Boolean).join(" - ");
         const financialPayload = {
             accountid: accountId,
             contacttid: contactId,                                 // לקוח בקופה (מבוטח)
-            pcfCompany: product.pcfsystemfield115 || "",           // חברה
-            pcfProduct: product.pcfsystemfield101 || "",           // מוצר
-            pcfManagementFeeAccumulation: product.pcfsystemfield114 || 0, // דמ"נ מצבירה
-            pcfManagementFeeDeposit: product.pcfsystemfield113 || 0,     // דמ"נ מהפקדה
+            pcfCompany: effectiveCompanyId,                        // חברה (מהטופס)
+            pcfProduct: effectiveProductTypeId,                    // מוצר (מהטופס)
+            pcfManagementFeeAccumulation: effectiveMgmtFeeAccumulation, // דמ"נ מצבירה (מהטופס)
+            pcfManagementFeeDeposit: effectiveMgmtFeeDeposit,      // דמ"נ מהפקדה (מהטופס)
             pcfOperationalStatus: 1,                               // סטטוס תפעולי (הוגש לעוצמה)
             pcfSaleOrAgent: 1,                                     // מכירה
             ownerid: agentId,                                      // סוכן
@@ -126,8 +233,8 @@ router.post("/transfer/execute", async (req, res) => {
             pcfsystemfield137: leadId,                             // ליד מקושר
             pcfsystemfield148: mislaka.pcfsystemfield101 || lead?.pcfsystemfield101 || "", // ת.ז לקוח (מסלקה יותר אמין)
             pcfKupaNumber: product.pcfsystemfield116 || "",        // מספר קופה
-            pcfsystemfield115: product.pcfsystemfield105 || 0,     // הפקדה חודשית צפויה
-            pcfsystemfield116: (parseFloat(product.pcfsystemfield105) || 0) * 12, // הפקדה שנתית צפויה
+            pcfsystemfield115: effectiveMonthlyDeposit,            // הפקדה חודשית (מהטופס)
+            pcfsystemfield116: effectiveMonthlyDeposit * 12,       // הפקדה שנתית (מחושבת)
             pcfsystemfield107: product.pcfsystemfield111 || 0,     // ניוד צפוי (צבירה)
             name: `${financialName} (ניוד מסלקה)`,
         };
@@ -181,10 +288,10 @@ router.post("/transfer/execute", async (req, res) => {
         send({ step: "transfer", message: "יוצר גוף מעביר..." });
         const transferPayload = {
             pcfFinancial: financialId,
-            pcfTransferringBody: product.pcfsystemfield115 || "",  // חברה (גוף מעביר)
+            pcfTransferringBody: effectiveCompanyId,               // חברה (גוף מעביר, מהטופס)
             pcfExpectedTransfer1: product.pcfsystemfield111 || 0,  // ניוד צפוי (צבירה)
             pcfsystemfield109: today,                              // תאריך מכירה
-            pcfsystemfield106: product.pcfsystemfield101 || "",    // מוצר
+            pcfsystemfield106: effectiveProductTypeId,             // מוצר (מהטופס)
             name: `ניוד — ${productName}`,
         };
 

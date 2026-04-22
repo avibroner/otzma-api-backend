@@ -19,7 +19,7 @@
 
         .container {
             width: 100%;
-            max-width: 520px;
+            max-width: 560px;
             background: #fff;
             border-radius: 16px;
             box-shadow: 0 4px 24px rgba(0,0,0,0.08);
@@ -36,6 +36,132 @@
         .header p { font-size: 13px; opacity: 0.8; margin-top: 4px; }
 
         .content { padding: 24px; }
+
+        /* Form */
+        .form-section {
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .form-section:last-of-type { border-bottom: none; }
+
+        .section-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #64748b;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .field {
+            margin-bottom: 14px;
+        }
+        .field label {
+            display: block;
+            font-size: 13px;
+            color: #334155;
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+        .field input[type="number"],
+        .field input[type="text"],
+        .field select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 14px;
+            background: #fff;
+            font-family: inherit;
+            direction: rtl;
+        }
+        .field input:focus,
+        .field select:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+        }
+
+        /* Toggle (Yes/No) */
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 0;
+        }
+        .toggle-row + .nested-fields { margin-top: 4px; }
+
+        .toggle-label {
+            font-size: 14px;
+            color: #334155;
+            font-weight: 500;
+        }
+
+        .toggle-group {
+            display: inline-flex;
+            background: #f1f5f9;
+            border-radius: 8px;
+            padding: 3px;
+        }
+        .toggle-group input { display: none; }
+        .toggle-group label {
+            display: inline-block;
+            padding: 6px 18px;
+            font-size: 13px;
+            color: #64748b;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.15s;
+            font-weight: 500;
+        }
+        .toggle-group input:checked + label {
+            background: #fff;
+            color: #2563eb;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+        }
+
+        .nested-fields {
+            margin-top: 8px;
+            margin-bottom: 8px;
+            padding: 12px;
+            background: #f8fafc;
+            border-radius: 8px;
+            border-right: 3px solid #2563eb;
+        }
+        .nested-fields.hidden { display: none; }
+        .nested-fields .field:last-child { margin-bottom: 0; }
+
+        /* Primary button */
+        .btn-primary {
+            display: block;
+            width: 100%;
+            padding: 14px;
+            border-radius: 10px;
+            border: none;
+            background: #2563eb;
+            color: #fff;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 12px;
+        }
+        .btn-primary:hover { background: #1d4ed8; }
+        .btn-primary:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+
+        .form-error {
+            background: #fef2f2;
+            color: #dc2626;
+            padding: 10px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            margin-bottom: 12px;
+            border: 1px solid #fecaca;
+        }
+        .form-error.hidden { display: none; }
 
         /* Steps */
         .step {
@@ -149,13 +275,13 @@
 <div class="container">
     <div class="header">
         <h1>ניוד מוצר מסלקה</h1>
-        <p>יצירת רשומות פיננסי, מעסיק בקופה וגוף מעביר</p>
+        <p id="headerSubtitle">טוען נתונים...</p>
     </div>
 
     <div class="content" id="content">
         <div class="init-message" id="initMessage">
             <div class="spinner"></div>
-            <p>מתחיל תהליך ניוד...</p>
+            <p>טוען פרטי מוצר...</p>
         </div>
     </div>
 </div>
@@ -163,6 +289,8 @@
 <script>
 const params = new URLSearchParams(window.location.search);
 const productId = params.get("id");
+
+let initData = null;
 
 if (!productId) {
     document.getElementById("content").innerHTML = `
@@ -175,23 +303,220 @@ if (!productId) {
         </div>
     `;
 } else {
-    startTransfer(productId);
+    loadInitData(productId);
 }
 
-async function startTransfer(productId) {
-    const stepsContainer = document.createElement("div");
-    stepsContainer.id = "steps";
+async function loadInitData(productId) {
+    try {
+        const res = await fetch(`/api/mislaka/transfer/init?id=${encodeURIComponent(productId)}`);
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+            throw new Error(data.message || "שגיאה בטעינה");
+        }
+
+        initData = data;
+        document.getElementById("headerSubtitle").textContent = data.product.name || "ניוד מוצר";
+        renderForm();
+    } catch (err) {
+        document.getElementById("content").innerHTML = `
+            <div class="error-init">
+                <div style="font-size:32px">⚠️</div>
+                <p>${err.message || "שגיאה בטעינת הטופס"}</p>
+            </div>
+        `;
+    }
+}
+
+function renderForm() {
+    const p = initData.product;
+
+    const companyOptions = initData.companies
+        .map((c) => `<option value="${c.id}" ${c.id === p.companyId ? "selected" : ""}>${escapeHtml(c.name)}</option>`)
+        .join("");
+
+    const productTypeOptions = initData.productTypes
+        .map((t) => `<option value="${t.id}">${escapeHtml(t.name)}</option>`)
+        .join("");
+
+    const content = document.getElementById("content");
+    content.innerHTML = `
+        <form id="transferForm">
+            <div class="form-error hidden" id="formError"></div>
+
+            <div class="form-section">
+                <div class="section-title">פרטי ניוד</div>
+
+                <div class="field">
+                    <label for="mgmtFeeDeposit">דמ"נ מהפקדה (%)</label>
+                    <input type="number" id="mgmtFeeDeposit" step="0.01" min="0" value="${formatNumber(p.managementFeeDeposit)}" required>
+                </div>
+
+                <div class="field">
+                    <label for="mgmtFeeAccumulation">דמ"נ מצבירה (%)</label>
+                    <input type="number" id="mgmtFeeAccumulation" step="0.01" min="0" value="${formatNumber(p.managementFeeAccumulation)}" required>
+                </div>
+
+                <div class="field">
+                    <label for="companyId">חברה</label>
+                    <select id="companyId" required>
+                        <option value="">בחר חברה...</option>
+                        ${companyOptions}
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="section-title">השוואה למוצר הקיים</div>
+
+                <div class="toggle-row">
+                    <span class="toggle-label">מעסיק זהה?</span>
+                    <div class="toggle-group">
+                        <input type="radio" id="sameEmp_yes" name="sameEmployer" value="yes" checked>
+                        <label for="sameEmp_yes">כן</label>
+                        <input type="radio" id="sameEmp_no" name="sameEmployer" value="no">
+                        <label for="sameEmp_no">לא</label>
+                    </div>
+                </div>
+                <div class="nested-fields hidden" id="employerFields">
+                    <div class="field">
+                        <label for="newEmployerName">שם מעסיק</label>
+                        <input type="text" id="newEmployerName" value="${escapeHtml(p.employerName || "")}" placeholder="שם מעסיק">
+                    </div>
+                    <div class="field">
+                        <label for="newEmployerTaxId">ח.פ</label>
+                        <input type="text" id="newEmployerTaxId" placeholder="מספר ח.פ">
+                    </div>
+                </div>
+
+                <div class="toggle-row">
+                    <span class="toggle-label">מוצר זהה?</span>
+                    <div class="toggle-group">
+                        <input type="radio" id="sameProd_yes" name="sameProduct" value="yes" checked>
+                        <label for="sameProd_yes">כן</label>
+                        <input type="radio" id="sameProd_no" name="sameProduct" value="no">
+                        <label for="sameProd_no">לא</label>
+                    </div>
+                </div>
+                <div class="nested-fields hidden" id="productFields">
+                    <div class="field">
+                        <label for="newProductId">סוג מוצר חדש</label>
+                        <select id="newProductId">
+                            <option value="">בחר סוג מוצר...</option>
+                            ${productTypeOptions}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="toggle-row">
+                    <span class="toggle-label">הפקדה זהה?</span>
+                    <div class="toggle-group">
+                        <input type="radio" id="sameDep_yes" name="sameDeposit" value="yes" checked>
+                        <label for="sameDep_yes">כן</label>
+                        <input type="radio" id="sameDep_no" name="sameDeposit" value="no">
+                        <label for="sameDep_no">לא</label>
+                    </div>
+                </div>
+                <div class="nested-fields hidden" id="depositFields">
+                    <div class="field">
+                        <label for="newMonthlyDeposit">הפקדה חודשית חדשה (₪)</label>
+                        <input type="number" id="newMonthlyDeposit" step="0.01" min="0" value="${formatNumber(p.monthlyDeposit)}">
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit" class="btn-primary" id="submitBtn">בצע ניוד</button>
+        </form>
+    `;
+
+    wireForm();
+}
+
+function wireForm() {
+    const pairs = [
+        { name: "sameEmployer", target: "employerFields" },
+        { name: "sameProduct", target: "productFields" },
+        { name: "sameDeposit", target: "depositFields" },
+    ];
+
+    pairs.forEach(({ name, target }) => {
+        document.querySelectorAll(`input[name="${name}"]`).forEach((input) => {
+            input.addEventListener("change", () => {
+                const isNo = document.querySelector(`input[name="${name}"]:checked`).value === "no";
+                document.getElementById(target).classList.toggle("hidden", !isNo);
+            });
+        });
+    });
+
+    document.getElementById("transferForm").addEventListener("submit", (e) => {
+        e.preventDefault();
+        handleSubmit();
+    });
+}
+
+function handleSubmit() {
+    const errorBox = document.getElementById("formError");
+    errorBox.classList.add("hidden");
+    errorBox.textContent = "";
+
+    const sameEmployer = document.querySelector('input[name="sameEmployer"]:checked').value === "yes";
+    const sameProduct = document.querySelector('input[name="sameProduct"]:checked').value === "yes";
+    const sameDeposit = document.querySelector('input[name="sameDeposit"]:checked').value === "yes";
+
+    const companyId = document.getElementById("companyId").value;
+    const newEmployerName = document.getElementById("newEmployerName").value.trim();
+    const newEmployerTaxId = document.getElementById("newEmployerTaxId").value.trim();
+    const newProductId = document.getElementById("newProductId").value;
+    const newMonthlyDeposit = document.getElementById("newMonthlyDeposit").value;
+
+    if (!companyId) {
+        return showFormError("יש לבחור חברה");
+    }
+    if (!sameEmployer && !newEmployerName) {
+        return showFormError("יש להזין שם מעסיק");
+    }
+    if (!sameProduct && !newProductId) {
+        return showFormError("יש לבחור סוג מוצר חדש");
+    }
+    if (!sameDeposit && (newMonthlyDeposit === "" || isNaN(parseFloat(newMonthlyDeposit)))) {
+        return showFormError("יש להזין סכום הפקדה חודשית");
+    }
+
+    const payload = {
+        productId,
+        managementFeeDeposit: parseFloat(document.getElementById("mgmtFeeDeposit").value) || 0,
+        managementFeeAccumulation: parseFloat(document.getElementById("mgmtFeeAccumulation").value) || 0,
+        companyId,
+        sameEmployer,
+        newEmployerName: sameEmployer ? "" : newEmployerName,
+        newEmployerTaxId: sameEmployer ? "" : newEmployerTaxId,
+        sameProduct,
+        newProductId: sameProduct ? "" : newProductId,
+        sameDeposit,
+        newMonthlyDeposit: sameDeposit ? 0 : parseFloat(newMonthlyDeposit) || 0,
+    };
+
+    startTransfer(payload);
+}
+
+function showFormError(msg) {
+    const errorBox = document.getElementById("formError");
+    errorBox.textContent = msg;
+    errorBox.classList.remove("hidden");
+}
+
+async function startTransfer(payload) {
+    // Replace form with streaming UI
+    const content = document.getElementById("content");
+    content.innerHTML = '<div id="steps"></div>';
+    const stepsContainer = document.getElementById("steps");
 
     try {
         const response = await fetch("/api/mislaka/transfer/execute", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ productId })
+            body: JSON.stringify(payload)
         });
-
-        // Remove init message
-        document.getElementById("initMessage").remove();
-        document.getElementById("content").appendChild(stepsContainer);
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
@@ -216,14 +541,11 @@ async function startTransfer(productId) {
             }
         }
 
-        // If no done/error was received
         if (!hasError && !document.querySelector(".result-card")) {
             addResultCard(stepsContainer, false, "התהליך הסתיים ללא תשובה ברורה מהשרת");
         }
 
     } catch (err) {
-        document.getElementById("initMessage")?.remove();
-        document.getElementById("content").appendChild(stepsContainer);
         addStep(stepsContainer, "error", err.message || "שגיאה בחיבור לשרת");
         addResultCard(stepsContainer, false, err.message);
     }
@@ -245,7 +567,6 @@ function handleUpdate(update, container) {
     } else if (update.step === "warning") {
         addStep(container, "warning", update.message);
     } else {
-        // Regular step — update or add
         const existingStep = container.querySelector(`[data-step="${update.step}"]`);
         if (existingStep) {
             existingStep.querySelector(".step-text").textContent = update.message;
@@ -254,7 +575,6 @@ function handleUpdate(update, container) {
         }
     }
 
-    // Mark previous loading steps as success (except the current one)
     const loadingIcons = container.querySelectorAll(".step-icon.loading");
     loadingIcons.forEach((icon, i) => {
         if (i < loadingIcons.length - 1 || update.step === "done" || update.step === "error") {
@@ -280,8 +600,9 @@ function addStep(container, type, message, stepId) {
 
     step.innerHTML = `
         <div class="step-icon ${type}">${icons[type] || "•"}</div>
-        <div class="step-text">${message}</div>
+        <div class="step-text"></div>
     `;
+    step.querySelector(".step-text").textContent = message;
     container.appendChild(step);
     container.scrollTop = container.scrollHeight;
 }
@@ -289,12 +610,35 @@ function addStep(container, type, message, stepId) {
 function addResultCard(container, success, detail) {
     const card = document.createElement("div");
     card.className = `result-card ${success ? "success" : "error"}`;
-    card.innerHTML = `
-        <h3>${success ? "✓ הניוד בוצע בהצלחה" : "✕ הניוד נכשל"}</h3>
-        ${detail ? `<p>${success ? detail : detail}</p>` : ""}
-        <button class="btn-close" onclick="window.close()">סגור חלון</button>
-    `;
+    const h3 = document.createElement("h3");
+    h3.textContent = success ? "✓ הניוד בוצע בהצלחה" : "✕ הניוד נכשל";
+    card.appendChild(h3);
+    if (detail) {
+        const p = document.createElement("p");
+        p.textContent = detail;
+        card.appendChild(p);
+    }
+    const btn = document.createElement("button");
+    btn.className = "btn-close";
+    btn.textContent = "סגור חלון";
+    btn.onclick = () => window.close();
+    card.appendChild(btn);
     container.appendChild(card);
+}
+
+function escapeHtml(str) {
+    return String(str || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+function formatNumber(n) {
+    if (n === null || n === undefined || n === "") return "";
+    const num = parseFloat(n);
+    return isNaN(num) ? "" : num;
 }
 </script>
 
