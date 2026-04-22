@@ -92,8 +92,9 @@ body { font-family:'Segoe UI',Tahoma,sans-serif; background:var(--bg); color:var
 .b-no { background:#16a34a22; color:#86efac; }
 
 .charts-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px; }
-.chart-box { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:16px; }
+.chart-box { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:16px; height:320px; display:flex; flex-direction:column; }
 .chart-box h4 { color:var(--accent); margin-bottom:10px; font-size:0.95rem; }
+.chart-box canvas { flex:1; min-height:0; }
 
 .client-cards { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
 
@@ -178,9 +179,8 @@ body { font-family:'Segoe UI',Tahoma,sans-serif; background:var(--bg); color:var
 
   /* Charts — keep both side by side, cap their height so they don't hog pages */
   .charts-row { grid-template-columns:1fr 1fr !important; gap:8px !important; margin-bottom:8px !important; }
-  .chart-box { padding:6px 8px !important; }
+  .chart-box { padding:6px 8px !important; height:200px !important; }
   .chart-box h4 { font-size:0.75rem !important; margin-bottom:4px !important; }
-  .chart-box canvas { max-height:180px !important; }
 }
 </style>
 </head>
@@ -391,9 +391,10 @@ if (persons.length === 1) {
 }
 
 // ─── Main Render ───
-let charts = [];
+window.__mislakaCharts = [];
+const charts = window.__mislakaCharts;
 function render(){
-  charts.forEach(c=>c.destroy()); charts=[];
+  charts.forEach(c=>c.destroy()); charts.length = 0;
   const P = persons[currentIdx];
   const main = document.getElementById('main');
   const totalSav = P.polisot.reduce((s,p)=>s+n(p['סך חיסכון']),0);
@@ -693,7 +694,7 @@ function buildCharts(P){
           {label:'סך חיסכון',data:polsWithSav.map(p=>n(p['סך חיסכון'])),backgroundColor:'#38bdf8'},
           {label:'יתרה עתידית',data:polsWithSav.map(p=>n(p['סה״כ יתרה עתידית'])),backgroundColor:'#a78bfa'}
         ]
-      }, options:{responsive:true,indexAxis:'y',
+      }, options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',
         scales:{x:{ticks:{color:'#94a3b8',callback:v=>'₪'+(v/1000).toFixed(0)+'K'},grid:{color:'#1e293b'}},y:{ticks:{color:'#e2e8f0',font:{size:11}},grid:{display:false}}},
         plugins:{legend:{labels:{color:'#e2e8f0'}}}}
     }));
@@ -701,7 +702,7 @@ function buildCharts(P){
   const types={}; P.polisot.forEach(p=>{const t=p['סוג מוצר']||'אחר';types[t]=(types[t]||0)+1;});
   charts.push(new Chart(document.getElementById('ch2'),{
     type:'doughnut', data:{labels:Object.keys(types),datasets:[{data:Object.values(types),backgroundColor:COLORS}]},
-    options:{responsive:true,cutout:'50%',plugins:{legend:{labels:{color:'#e2e8f0'}}}}
+    options:{responsive:true,maintainAspectRatio:false,cutout:'50%',plugins:{legend:{labels:{color:'#e2e8f0'}}}}
   }));
 }
 
@@ -717,13 +718,19 @@ render();
   });
 })();
 
-// Fill print-header with current client + today's date before print dialog opens
+// Fill print-header with current client + today's date before print dialog opens,
+// and force Chart.js to resize to the new (landscape, paper-width) container.
 window.addEventListener('beforeprint', () => {
   const meta = document.getElementById('printHeaderMeta');
-  if (!meta) return;
-  const clientText = (document.getElementById('clientInfo')?.innerText || '').trim();
-  const today = new Date().toLocaleDateString('he-IL');
-  meta.textContent = `${clientText} · הודפס בתאריך ${today}`;
+  if (meta) {
+    const clientText = (document.getElementById('clientInfo')?.innerText || '').trim();
+    const today = new Date().toLocaleDateString('he-IL');
+    meta.textContent = `${clientText} · הודפס בתאריך ${today}`;
+  }
+  (window.__mislakaCharts || []).forEach(c => { try { c.resize(); } catch {} });
+});
+window.addEventListener('afterprint', () => {
+  (window.__mislakaCharts || []).forEach(c => { try { c.resize(); } catch {} });
 });
 
 </script>
