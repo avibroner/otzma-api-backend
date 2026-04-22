@@ -75,10 +75,23 @@ async function get_account(account_id) {
         id: account.accountid,
         name: account.accountname,
 
-        // 🎯 שדות שביקשת
-        ownerId: account.pcfsystemfield274 || null,
-        financialPlannerId: account.ownerid || null
+        // 🎯 סוכן = ownerid של הלקוח, מתכנן פיננסי = pcfsystemfield274
+        ownerId: account.ownerid || null,
+        financialPlannerId: account.pcfsystemfield274 || null
     };
+
+    // 🏢 יחידה עסקית — נשלפת מה-user של הסוכן (BU מוגדרת על CrmUser בפיירברי)
+    if (ACCOUNT.ownerId) {
+        try {
+            const buRes = await postRequest("/get/user-bu", { userId: ACCOUNT.ownerId });
+            ACCOUNT.businessUnitId = buRes?.businessUnitId || null;
+        } catch (e) {
+            console.error("BU lookup failed:", e);
+            ACCOUNT.businessUnitId = null;
+        }
+    } else {
+        ACCOUNT.businessUnitId = null;
+    }
 
     // הצגה ב־UI
     document.getElementById("primary_insured_title_name").textContent =
@@ -1567,6 +1580,7 @@ async function saveInsurancePolicies(account_id, btn) {
             // 🔁 העתקה מהלקוח
             ownerid: ACCOUNT.ownerId,
             pcfsystemfield120: ACCOUNT.financialPlannerId,
+            pcfsystemfield132: ACCOUNT.businessUnitId,
 
             // 🆔 ת.ז מבוטח ראשי
             pcfsystemfield121: primaryIdNumber,
@@ -1667,6 +1681,7 @@ async function saveFinancialProducts(account_id, btn) {
         }
 
         // 3️⃣ יצירת פיננסי (Opportunity)
+        // ⚠️ באובייקט Opportunity: ownerid=מתכנן פיננסי, pcfsystemfield100=סוכן (הפוך מפוליסה)
         const financialPayload = {
             accountid: account_id,
             contacttid: financeData.memberRef,
@@ -1678,8 +1693,9 @@ async function saveFinancialProducts(account_id, btn) {
             pcfsystemfield148: financeData.memberIdNumber,
 
             // 🔁 העתקה מהלקוח
-            ownerid: ACCOUNT.ownerId,
-            pcfsystemfield100: ACCOUNT.financialPlannerId,
+            ownerid: ACCOUNT.financialPlannerId,
+            pcfsystemfield100: ACCOUNT.ownerId,
+            pcfsystemfield143: ACCOUNT.businessUnitId,
 
             // 👇 הוספת תאריך מכירה לפיננסי הראשי
             pcfsystemfield140: todayDate
@@ -1710,9 +1726,9 @@ async function saveFinancialProducts(account_id, btn) {
                 pcfTransferringBody: transfer.companyId,
                 pcfExpectedTransfer1: transfer.amount,
 
-                // 🔁 העתקה מהלקוח
-                ownerid: ACCOUNT.ownerId,
-                pcfsystemfield102: ACCOUNT.financialPlannerId,
+                // 🔁 העתקה מהלקוח — ב-1017: ownerid=מתכנן פיננסי, pcfsystemfield102=סוכן
+                ownerid: ACCOUNT.financialPlannerId,
+                pcfsystemfield102: ACCOUNT.ownerId,
 
                 // 👇 הוספת תאריך מכירה לגוף מעביר
                 pcfsystemfield109: todayDate
@@ -1731,9 +1747,9 @@ async function saveFinancialProducts(account_id, btn) {
                 PCFEMPLOYER: employerId,
                 pcfMonthlyDeposit: employer.monthlyDeposit,
 
-                // 🔁 העתקה מהלקוח
-                ownerid: ACCOUNT.ownerId,
-                pcfsystemfield102: ACCOUNT.financialPlannerId,
+                // 🔁 העתקה מהלקוח — ב-1019: ownerid=מתכנן פיננסי, pcfsystemfield102=סוכן
+                ownerid: ACCOUNT.financialPlannerId,
+                pcfsystemfield102: ACCOUNT.ownerId,
 
                 // 👇 הוספת תאריך מכירה למעסיק בקופה
                 pcfsystemfield107: todayDate

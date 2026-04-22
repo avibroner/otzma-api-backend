@@ -173,4 +173,20 @@ router.post("/create/financial-employer", async (req, res) => {
     res.json(response);
 });
 
+// 🏢 שליפת יחידה עסקית של משתמש (לשיוך פוליסה/פיננסים ליחידה הנכונה)
+router.post("/get/user-bu", async (req, res) => {
+    const { userId } = req.body;
+    if (!userId) return res.json({ businessUnitId: null });
+
+    const response = await postRequest("/query", {
+        objecttype: 9,
+        fields: "crmuserid,businessunitid",
+        query: `crmuserid = '${userId}'`,
+        page_size: 1
+    });
+
+    const businessUnitId = response?.data?.Data?.[0]?.businessunitid || null;
+    res.json({ businessUnitId });
+});
+
 module.exports = router;

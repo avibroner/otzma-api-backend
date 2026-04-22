@@ -148,6 +148,22 @@ router.post("/transfer/execute", async (req, res) => {
 
         send({ step: "loading", message: `ליד נמצא: ${lead?.name || leadId}` });
 
+        // Fetch business unit of the agent — BU is defined on CrmUser (object 9)
+        let businessUnitId = null;
+        if (agentId) {
+            try {
+                const userRes = await postRequest("/query", {
+                    objecttype: 9,
+                    fields: "crmuserid,businessunitid",
+                    query: `crmuserid = '${agentId}'`,
+                    page_size: 1,
+                });
+                businessUnitId = userRes?.data?.Data?.[0]?.businessunitid || null;
+            } catch (e) {
+                console.error("BU lookup failed in mislaka transfer:", e);
+            }
+        }
+
         // Step 3: Find or create employer
         let employerId = "";
         const employerName = sameEmployer
@@ -227,8 +243,10 @@ router.post("/transfer/execute", async (req, res) => {
             pcfManagementFeeDeposit: effectiveMgmtFeeDeposit,      // דמ"נ מהפקדה (מהטופס)
             pcfOperationalStatus: 1,                               // סטטוס תפעולי (הוגש לעוצמה)
             pcfSaleOrAgent: 1,                                     // מכירה
-            ownerid: agentId,                                      // סוכן
-            pcfsystemfield100: financialPlannerId,                 // מתכנן פיננסי (על opportunity)
+            // ב-Opportunity: ownerid=מתכנן פיננסי, pcfsystemfield100=סוכן
+            ownerid: financialPlannerId,
+            pcfsystemfield100: agentId,
+            pcfsystemfield143: businessUnitId,                     // יחידה עסקית
             pcfsystemfield140: today,                              // תאריך מכירה
             pcfsystemfield137: leadId,                             // ליד מקושר
             pcfsystemfield148: mislaka.pcfsystemfield101 || lead?.pcfsystemfield101 || "", // ת.ז לקוח (מסלקה יותר אמין)
@@ -272,6 +290,9 @@ router.post("/transfer/execute", async (req, res) => {
                 pcfFinancial: financialId,
                 pcfEmployer: employerId,
                 pcfMonthlyDeposit: effectiveMonthlyDeposit, // הפקדה חודשית (מהטופס)
+                // ב-1019: ownerid=מתכנן פיננסי, pcfsystemfield102=סוכן
+                ownerid: financialPlannerId,
+                pcfsystemfield102: agentId,
             };
 
             const employerFundResult = await postRequest("/record/1019", employerFundPayload);
@@ -293,6 +314,9 @@ router.post("/transfer/execute", async (req, res) => {
             pcfExpectedTransfer1: product.pcfsystemfield111 || 0,  // ניוד צפוי (צבירה)
             pcfsystemfield109: today,                              // תאריך מכירה
             pcfsystemfield106: effectiveProductTypeId,             // מוצר (מהטופס)
+            // ב-1017: ownerid=מתכנן פיננסי, pcfsystemfield102=סוכן
+            ownerid: financialPlannerId,
+            pcfsystemfield102: agentId,
             name: `ניוד — ${productName}`,
         };
 
