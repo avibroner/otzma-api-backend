@@ -233,8 +233,6 @@ router.post("/transfer/execute", async (req, res) => {
             pcfsystemfield137: leadId,                             // ליד מקושר
             pcfsystemfield148: mislaka.pcfsystemfield101 || lead?.pcfsystemfield101 || "", // ת.ז לקוח (מסלקה יותר אמין)
             pcfKupaNumber: product.pcfsystemfield116 || "",        // מספר קופה
-            pcfsystemfield115: effectiveMonthlyDeposit,            // הפקדה חודשית (מהטופס)
-            pcfsystemfield116: effectiveMonthlyDeposit * 12,       // הפקדה שנתית (מחושבת)
             pcfsystemfield107: product.pcfsystemfield111 || 0,     // ניוד צפוי (צבירה)
             name: `${financialName} (ניוד מסלקה)`,
         };
@@ -264,16 +262,19 @@ router.post("/transfer/execute", async (req, res) => {
 
         // Link the new opportunity back to the mislaka product
         await putRequest(`/record/1031/${productId}`, {
-            pcfsystemfield119: financialId, // פוליסה מקושרת
+            pcfLinkedFinancial: financialId, // קישור לפיננסי שנוצר
         });
 
         // Step 5: Create employer in fund (1019) — if employer exists
         if (employerId) {
             send({ step: "employer_fund", message: "יוצר מעסיק בקופה..." });
-            const employerFundResult = await postRequest("/record/1019", {
+            const employerFundPayload = {
                 pcfFinancial: financialId,
                 pcfEmployer: employerId,
-            });
+                pcfMonthlyDeposit: effectiveMonthlyDeposit, // הפקדה חודשית (מהטופס)
+            };
+
+            const employerFundResult = await postRequest("/record/1019", employerFundPayload);
 
             if (employerFundResult?.success !== false) {
                 send({ step: "employer_fund", message: "מעסיק בקופה נוצר בהצלחה" });
