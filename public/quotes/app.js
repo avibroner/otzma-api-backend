@@ -75,6 +75,8 @@ let familyMembers = [];
 let ACCOUNT = null;
 
 const SPLIT_PRODUCT_NAME = "בריאות ומחלות";
+const SPLIT_HEALTH_PRODUCT_NAME = "בריאות";
+const SPLIT_DISEASE_PRODUCT_NAME = "מחלות מורחב";
 
 
 let categories = {}
@@ -1726,8 +1728,18 @@ async function saveInsurancePolicies(account_id, btn) {
         }
 
         // 9️⃣ מבוטחים בפוליסה
-        const healthProduct = getProductByName("ביטוח", "בריאות");
-        const diseaseProduct = getProductByName("ביטוח", "מחלות");
+        const healthProduct = getProductByName("ביטוח", SPLIT_HEALTH_PRODUCT_NAME);
+        const diseaseProduct = getProductByName("ביטוח", SPLIT_DISEASE_PRODUCT_NAME);
+
+        const splitNeedsHealth = insuredList.some(i => i.splitProductType === "health");
+        const splitNeedsDisease = insuredList.some(i => i.splitProductType === "disease");
+
+        if (splitNeedsHealth && !healthProduct) {
+            throw new Error(`לא נמצא מוצר ביטוח בשם '${SPLIT_HEALTH_PRODUCT_NAME}' ברשימת המוצרים בקטגוריה 'ביטוחי' בפיירברי`);
+        }
+        if (splitNeedsDisease && !diseaseProduct) {
+            throw new Error(`לא נמצא מוצר ביטוח בשם '${SPLIT_DISEASE_PRODUCT_NAME}' ברשימת המוצרים בקטגוריה 'ביטוחי' בפיירברי`);
+        }
 
         for (let insured of insuredList) {
 
