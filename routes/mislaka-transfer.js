@@ -174,21 +174,43 @@ router.post("/transfer/execute", async (req, res) => {
         if (employerName) {
             send({ step: "employer", message: `מחפש מעסיק: ${employerName}...` });
 
-            // Search existing employer by name
-            const employerSearch = await postRequest("/query", {
-                objecttype: 1018,
-                fields: "customobject1018id,name,pcfCompanyNumber",
-                query: `name = '${employerName.replace(/'/g, "\\'")}'`
-            });
+            // Tax ID is the unique business identifier — try it first
+            let existingEmployer = null;
+            if (employerTaxId) {
+                const byTaxId = await postRequest("/query", {
+                    objecttype: 1018,
+                    fields: "customobject1018id,name,pcfCompanyNumber",
+                    query: `pcfCompanyNumber = '${employerTaxId.replace(/'/g, "\\'")}'`,
+                });
+                existingEmployer = byTaxId?.data?.Data?.[0] || null;
+                if (existingEmployer) {
+                    const existingName = existingEmployer.name || "";
+                    if (existingName && existingName !== employerName) {
+                        send({ step: "employer", message: `מעסיק קיים נמצא לפי ח.פ: ${existingName}` });
+                    } else {
+                        send({ step: "employer", message: `מעסיק נמצא: ${existingName || employerName}` });
+                    }
+                }
+            }
 
-            const existingEmployers = employerSearch?.data?.Data || [];
-            if (existingEmployers.length > 0) {
-                const existing = existingEmployers[0];
-                employerId = existing.customobject1018id;
-                send({ step: "employer", message: `מעסיק נמצא: ${employerName}` });
+            // Fallback: search by name
+            if (!existingEmployer) {
+                const byName = await postRequest("/query", {
+                    objecttype: 1018,
+                    fields: "customobject1018id,name,pcfCompanyNumber",
+                    query: `name = '${employerName.replace(/'/g, "\\'")}'`,
+                });
+                existingEmployer = byName?.data?.Data?.[0] || null;
+                if (existingEmployer) {
+                    send({ step: "employer", message: `מעסיק נמצא: ${employerName}` });
+                }
+            }
+
+            if (existingEmployer) {
+                employerId = existingEmployer.customobject1018id;
 
                 // Backfill tax ID if the agent supplied one and existing record is missing it
-                if (employerTaxId && !existing.pcfCompanyNumber) {
+                if (employerTaxId && !existingEmployer.pcfCompanyNumber) {
                     try {
                         await putRequest(`/record/1018/${employerId}`, {
                             pcfCompanyNumber: employerTaxId,
@@ -205,10 +227,35 @@ router.post("/transfer/execute", async (req, res) => {
 
                 const newEmployer = await postRequest("/record/1018", employerPayload);
                 employerId = newEmployer?.data?.id || "";
+
                 if (employerId) {
                     send({ step: "employer", message: `מעסיק נוצר בהצלחה` });
-                } else {
-                    send({ step: "warning", message: `שגיאה ביצירת מעסיק — ממשיך בלעדיו` });
+                } else if (employerTaxId) {
+                    // Defensive retry — Fireberry may have rejected the create because
+                    // the tax ID already exists (race or stale read in step 3a).
+                    const retry = await postRequest("/query", {
+                        objecttype: 1018,
+                        fields: "customobject1018id,name,pcfCompanyNumber",
+                        query: `pcfCompanyNumber = '${employerTaxId.replace(/'/g, "\\'")}'`,
+                    });
+                    const retryHit = retry?.data?.Data?.[0] || null;
+                    if (retryHit) {
+                        employerId = retryHit.customobject1018id;
+                        send({ step: "employer", message: `מעסיק קיים אותר לפי ח.פ אחרי כשל יצירה: ${retryHit.name || employerName}` });
+                    }
+                }
+
+                if (!employerId) {
+                    const fireberryMessage = newEmployer?.message || newEmployer?.data?.message || "ללא פרטים מ-Fireberry";
+                    if (sameEmployer === false) {
+                        // User explicitly entered a new employer — fail loud, do not create
+                        // a financial record without an employer linkage (deposit would not be valid).
+                        send({ step: "error", message: `נכשלה יצירת מעסיק "${employerName}" (ח.פ ${employerTaxId || "ללא"}). סיבה: ${fireberryMessage}` });
+                        return res.end();
+                    } else {
+                        // Name came from product (auto-fill) — keep prior soft behavior
+                        send({ step: "warning", message: `שגיאה ביצירת מעסיק (${fireberryMessage}) — ממשיך בלעדיו` });
+                    }
                 }
             }
         }
