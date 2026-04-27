@@ -79,6 +79,38 @@ const SPLIT_PRODUCT_NAME = "בריאות ומחלות";
 
 let categories = {}
 let companies = []
+
+// =======================
+// AMOUNT FORMATTING (thousands separators for insurance amount inputs)
+// =======================
+const AMOUNT_INPUT_SELECTOR = ".insurance_amount, .insurance-amount-health, .insurance-amount-disease";
+
+function formatAmountWithCommas(rawValue) {
+    if (rawValue === null || rawValue === undefined || rawValue === "") return "";
+    const digits = String(rawValue).replace(/[^\d]/g, "");
+    if (digits === "") return "";
+    return Number(digits).toLocaleString("en-US");
+}
+
+function stripCommas(value) {
+    return String(value ?? "").replace(/,/g, "");
+}
+
+document.addEventListener("input", (e) => {
+    const el = e.target;
+    if (!(el instanceof HTMLInputElement)) return;
+    if (!el.matches(AMOUNT_INPUT_SELECTOR)) return;
+
+    const before = el.value;
+    const caretFromEnd = before.length - (el.selectionStart ?? before.length);
+    const formatted = formatAmountWithCommas(before);
+    if (formatted === before) return;
+
+    el.value = formatted;
+    const newPos = Math.max(0, formatted.length - caretFromEnd);
+    try { el.setSelectionRange(newPos, newPos); } catch { /* ignore */ }
+});
+
 function getObjectIdFromUrl() {
     const params = new URLSearchParams(window.location.search);
     return params.get("objectid");
@@ -533,13 +565,13 @@ function insuranceOfferTab(cardId, headerContent, productName) {
             <td>
                 <div class="input-group">
                     <span class="currency-symbol">₪</span>
-                    <input class="insurance-amount-health" type="number" disabled>
+                    <input class="insurance-amount-health" type="text" inputmode="numeric" disabled>
                 </div>
             </td>
             <td>
                 <div class="input-group">
                     <span class="currency-symbol">₪</span>
-                    <input class="insurance-amount-disease" type="number" disabled>
+                    <input class="insurance-amount-disease" type="text" inputmode="numeric" disabled>
                 </div>
             </td>
           `
@@ -554,7 +586,7 @@ function insuranceOfferTab(cardId, headerContent, productName) {
             <td>
                 <div class="input-group">
                     <span class="currency-symbol">₪</span>
-                    <input class="insurance_amount" type="number" disabled>
+                    <input class="insurance_amount" type="text" inputmode="numeric" disabled>
                 </div>
             </td>
           `;
@@ -1061,7 +1093,7 @@ function collectPolicyInsured(card) {
         if (!isHealthAndDiseases) {
 
             const premium = row.querySelector('.premium')?.value;
-            const insuranceAmount = row.querySelector('.insurance_amount')?.value;
+            const insuranceAmount = stripCommas(row.querySelector('.insurance_amount')?.value);
             const discount = row.querySelector('.discount')?.value || null;
 
             if (!premium || Number(premium) <= 0) {
@@ -1090,8 +1122,8 @@ function collectPolicyInsured(card) {
         const premiumHealth = row.querySelector('.premium-health')?.value;
         const premiumDisease = row.querySelector('.premium-disease')?.value;
 
-        const amountHealth = row.querySelector('.insurance-amount-health')?.value;
-        const amountDisease = row.querySelector('.insurance-amount-disease')?.value;
+        const amountHealth = stripCommas(row.querySelector('.insurance-amount-health')?.value);
+        const amountDisease = stripCommas(row.querySelector('.insurance-amount-disease')?.value);
 
         const discountHealth = row.querySelector('.discount-health')?.value || null;
         const discountDisease = row.querySelector('.discount-disease')?.value || null;
