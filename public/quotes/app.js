@@ -81,9 +81,10 @@ let categories = {}
 let companies = []
 
 // =======================
-// AMOUNT FORMATTING (thousands separators for insurance amount inputs)
+// INPUT FORMATTING (thousands separators for amounts/premiums, % suffix for discounts)
 // =======================
-const AMOUNT_INPUT_SELECTOR = ".insurance_amount, .insurance-amount-health, .insurance-amount-disease";
+const AMOUNT_INPUT_SELECTOR = ".insurance_amount, .insurance-amount-health, .insurance-amount-disease, .premium, .premium-health, .premium-disease";
+const PERCENT_INPUT_SELECTOR = ".discount, .discount-health, .discount-disease";
 
 function formatAmountWithCommas(rawValue) {
     if (rawValue === null || rawValue === undefined || rawValue === "") return "";
@@ -92,20 +93,39 @@ function formatAmountWithCommas(rawValue) {
     return Number(digits).toLocaleString("en-US");
 }
 
+function formatPercent(rawValue) {
+    if (rawValue === null || rawValue === undefined || rawValue === "") return "";
+    const digits = String(rawValue).replace(/[^\d]/g, "");
+    if (digits === "") return "";
+    const capped = Math.min(100, Number(digits));
+    return `${capped}%`;
+}
+
 function stripCommas(value) {
     return String(value ?? "").replace(/,/g, "");
+}
+
+function stripPercent(value) {
+    return String(value ?? "").replace(/%/g, "").trim();
 }
 
 document.addEventListener("input", (e) => {
     const el = e.target;
     if (!(el instanceof HTMLInputElement)) return;
-    if (!el.matches(AMOUNT_INPUT_SELECTOR)) return;
+
+    let formatted = null;
+    if (el.matches(AMOUNT_INPUT_SELECTOR)) {
+        formatted = formatAmountWithCommas(el.value);
+    } else if (el.matches(PERCENT_INPUT_SELECTOR)) {
+        formatted = formatPercent(el.value);
+    } else {
+        return;
+    }
 
     const before = el.value;
-    const caretFromEnd = before.length - (el.selectionStart ?? before.length);
-    const formatted = formatAmountWithCommas(before);
     if (formatted === before) return;
 
+    const caretFromEnd = before.length - (el.selectionStart ?? before.length);
     el.value = formatted;
     const newPos = Math.max(0, formatted.length - caretFromEnd);
     try { el.setSelectionRange(newPos, newPos); } catch { /* ignore */ }
@@ -552,13 +572,13 @@ function insuranceOfferTab(cardId, headerContent, productName) {
             <td>
                 <div class="input-group">
                     <span class="currency-symbol">₪</span>
-                    <input class="premium-health" type="number" disabled>
+                    <input class="premium-health" type="text" inputmode="numeric" disabled>
                 </div>
             </td>
             <td>
                 <div class="input-group">
                     <span class="currency-symbol">₪</span>
-                    <input class="premium-disease" type="number" disabled>
+                    <input class="premium-disease" type="text" inputmode="numeric" disabled>
                 </div>
             </td>
 
@@ -579,7 +599,7 @@ function insuranceOfferTab(cardId, headerContent, productName) {
             <td>
                 <div class="input-group">
                     <span class="currency-symbol">₪</span>
-                    <input class="premium" type="number" disabled>
+                    <input class="premium" type="text" inputmode="numeric" disabled>
                 </div>
             </td>
 
@@ -605,15 +625,15 @@ function insuranceOfferTab(cardId, headerContent, productName) {
     const discountCells = isHealthAndDiseases
         ? `
             <td>
-                <input class="discount-health" type="number" disabled>
+                <input class="discount-health" type="text" inputmode="numeric" disabled>
             </td>
             <td>
-                <input class="discount-disease" type="number" disabled>
+                <input class="discount-disease" type="text" inputmode="numeric" disabled>
             </td>
           `
         : `
             <td>
-                <input class="discount" type="number" disabled>
+                <input class="discount" type="text" inputmode="numeric" disabled>
             </td>
           `;
 
@@ -1092,9 +1112,10 @@ function collectPolicyInsured(card) {
         // =========================
         if (!isHealthAndDiseases) {
 
-            const premium = row.querySelector('.premium')?.value;
+            const premium = stripCommas(row.querySelector('.premium')?.value);
             const insuranceAmount = stripCommas(row.querySelector('.insurance_amount')?.value);
-            const discount = row.querySelector('.discount')?.value || null;
+            const discountRaw = row.querySelector('.discount')?.value;
+            const discount = discountRaw ? stripPercent(discountRaw) : null;
 
             if (!premium || Number(premium) <= 0) {
                 throw new Error(`חסרה פרמיה עבור המבוטח: ${name}`);
@@ -1119,14 +1140,16 @@ function collectPolicyInsured(card) {
         // 🟢 בריאות + מחלות (מפוצל)
         // =========================
 
-        const premiumHealth = row.querySelector('.premium-health')?.value;
-        const premiumDisease = row.querySelector('.premium-disease')?.value;
+        const premiumHealth = stripCommas(row.querySelector('.premium-health')?.value);
+        const premiumDisease = stripCommas(row.querySelector('.premium-disease')?.value);
 
         const amountHealth = stripCommas(row.querySelector('.insurance-amount-health')?.value);
         const amountDisease = stripCommas(row.querySelector('.insurance-amount-disease')?.value);
 
-        const discountHealth = row.querySelector('.discount-health')?.value || null;
-        const discountDisease = row.querySelector('.discount-disease')?.value || null;
+        const discountHealthRaw = row.querySelector('.discount-health')?.value;
+        const discountDiseaseRaw = row.querySelector('.discount-disease')?.value;
+        const discountHealth = discountHealthRaw ? stripPercent(discountHealthRaw) : null;
+        const discountDisease = discountDiseaseRaw ? stripPercent(discountDiseaseRaw) : null;
 
         // --- ולידציות בריאות ---
         if (!premiumHealth || Number(premiumHealth) <= 0) {
@@ -1192,15 +1215,15 @@ function getMainInsuredPolicyDiscount(card) {
 
         // 🟢 מוצר רגיל
         if (!isHealthAndDiseases) {
-            const v = row.querySelector('.discount')?.value;
+            const v = stripPercent(row.querySelector('.discount')?.value);
             if (!v) return null;
 
             return `${v}%`;
         }
 
         // 🟢 בריאות + מחלות
-        const healthRaw = row.querySelector('.discount-health')?.value;
-        const diseaseRaw = row.querySelector('.discount-disease')?.value;
+        const healthRaw = stripPercent(row.querySelector('.discount-health')?.value);
+        const diseaseRaw = stripPercent(row.querySelector('.discount-disease')?.value);
 
         const parts = [];
 
