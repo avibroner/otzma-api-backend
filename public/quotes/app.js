@@ -1123,14 +1123,16 @@ function collectPolicyInsured(card) {
                 throw new Error(`חסרה פרמיה עבור המבוטח: ${name}`);
             }
 
-            if (!insuranceAmount || Number(insuranceAmount) <= 0) {
+            // סכום ביטוח: חובה לכל המוצרים פרט ל"בריאות" (בקשת בניה זארי 14.4.2026)
+            const insuranceAmountOptional = productName === SPLIT_HEALTH_PRODUCT_NAME;
+            if (!insuranceAmountOptional && (!insuranceAmount || Number(insuranceAmount) <= 0)) {
                 throw new Error(`חסר סכום ביטוח עבור המבוטח: ${name}`);
             }
 
             insuredList.push({
                 contactId: member.uid || null,
                 premium: Number(premium),
-                insuranceAmount: Number(insuranceAmount),
+                insuranceAmount: insuranceAmount && Number(insuranceAmount) > 0 ? Number(insuranceAmount) : null,
                 discount,
                 splitProductType: null
             });
@@ -1153,29 +1155,21 @@ function collectPolicyInsured(card) {
         const discountHealth = discountHealthRaw ? stripPercent(discountHealthRaw) : null;
         const discountDisease = discountDiseaseRaw ? stripPercent(discountDiseaseRaw) : null;
 
-        // --- ולידציות בריאות ---
+        // --- ולידציות בריאות (סכום ביטוח אופציונלי לבקשת בניה 14.4.2026) ---
         if (!premiumHealth || Number(premiumHealth) <= 0) {
             throw new Error(`חסרה פרמיית בריאות עבור המבוטח: ${name}`);
         }
 
-        if (!amountHealth || Number(amountHealth) <= 0) {
-            throw new Error(`חסר סכום ביטוח בריאות עבור המבוטח: ${name}`);
-        }
-
-        // --- ולידציות מחלות ---
+        // --- ולידציות מחלות (סכום ביטוח אופציונלי לבקשת בניה 14.4.2026) ---
         if (!premiumDisease || Number(premiumDisease) <= 0) {
             throw new Error(`חסרה פרמיית מחלות עבור המבוטח: ${name}`);
-        }
-
-        if (!amountDisease || Number(amountDisease) <= 0) {
-            throw new Error(`חסר סכום ביטוח מחלות עבור המבוטח: ${name}`);
         }
 
         // --- רשומת בריאות ---
         insuredList.push({
             contactId: member.uid,
             premium: Number(premiumHealth),
-            insuranceAmount: Number(amountHealth),
+            insuranceAmount: amountHealth && Number(amountHealth) > 0 ? Number(amountHealth) : null,
             discount: discountHealth,
             splitProductType: "health"
         });
@@ -1184,7 +1178,7 @@ function collectPolicyInsured(card) {
         insuredList.push({
             contactId: member.uid,
             premium: Number(premiumDisease),
-            insuranceAmount: Number(amountDisease),
+            insuranceAmount: amountDisease && Number(amountDisease) > 0 ? Number(amountDisease) : null,
             discount: discountDisease,
             splitProductType: "disease"
         });
@@ -1671,10 +1665,10 @@ async function saveInsurancePolicies(account_id, btn) {
         // 6️⃣ מבוטחים בפוליסה
         const insuredList = collectPolicyInsured(card);
 
-        // שליפת סכום הביטוח של המבוטח הראשי מהטבלה
-        let mainInsuredAmount = 0;
+        // שליפת סכום הביטוח של המבוטח הראשי מהטבלה (אופציונלי לבריאות/בריאות+מחלות)
+        let mainInsuredAmount = null;
         const mainInsuredData = insuredList.find(ins => ins.contactId === primaryUID);
-        if (mainInsuredData) {
+        if (mainInsuredData && mainInsuredData.insuranceAmount) {
             mainInsuredAmount = mainInsuredData.insuranceAmount;
         }
 
@@ -1705,11 +1699,13 @@ async function saveInsurancePolicies(account_id, btn) {
             pcfsystemfield121: primaryIdNumber,
 
             // 👇 הוספת תאריך המכירה לפוליסה
-            pcfsystemfield104: todayDate,
-
-            //סכום ביטוח מבוטח ראשי בפוליסה
-            pcfsystemfield114: mainInsuredAmount
+            pcfsystemfield104: todayDate
         };
+
+        //סכום ביטוח מבוטח ראשי בפוליסה (אופציונלי לבריאות/בריאות+מחלות)
+        if (mainInsuredAmount !== null) {
+            policyPayload.pcfsystemfield114 = mainInsuredAmount;
+        }
 
         // 🏦 משעבד (ריסק משכנתא / משועבד)
         if (mortgageValue) {
@@ -1757,7 +1753,6 @@ async function saveInsurancePolicies(account_id, btn) {
                 pcfsystemfield101: policyId,
                 pcfsystemfield102: insured.contactId,
                 pcfsystemfield105: insured.premium,
-                pcfsystemfield111: insured.insuranceAmount,
                 pcfsystemfield109: productIdToUse,
                 pcfsystemfield110: companyId,
 
@@ -1768,6 +1763,11 @@ async function saveInsurancePolicies(account_id, btn) {
                 //תאריך מכירה למבוטח בפוליסה
                 pcfsystemfield114: todayDate
             };
+
+            //סכום ביטוח (אופציונלי לבריאות/בריאות+מחלות)
+            if (insured.insuranceAmount !== null && insured.insuranceAmount !== undefined) {
+                insuredPayload.pcfsystemfield111 = insured.insuranceAmount;
+            }
 
             if (
                 insured.discount !== null &&
