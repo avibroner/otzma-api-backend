@@ -8,6 +8,9 @@ const activityLog = require("./middleware/activityLog");
 
 const app = express();
 
+// Trust nginx reverse proxy — required so req.ip + secure detection use X-Forwarded-* headers
+app.set("trust proxy", true);
+
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
 app.use(cors({ origin: "*", exposedHeaders: ["x-session-id", "x-account-id", "x-user-id"] }));
