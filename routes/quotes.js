@@ -1,15 +1,61 @@
 const express = require("express");
 const router = express.Router();
 const { postRequest, getRequest } = require("../lib/fireberry");
+const logger = require("../lib/logger");
+
+function validateRequired(body, fields) {
+    const missing = fields.filter(f => {
+        const v = body?.[f];
+        return v === undefined || v === null || v === "";
+    });
+    if (missing.length) {
+        const err = new Error(`missing required fields: ${missing.join(", ")}`);
+        err.status = 400;
+        err.missing = missing;
+        throw err;
+    }
+}
+
+function handleValidationError(err, res) {
+    if (err.status === 400) {
+        return res.status(400).json({ error: err.message, missing: err.missing });
+    }
+    throw err;
+}
 
 // Add New Family Member
 router.post("/add-family-member", async (req, res) => {
     try {
+        validateRequired(req.body, ["accountid", "firstname", "pcfsystemfield127"]);
         const response = await postRequest("/record/contact", { ...req.body });
         res.json(response);
     } catch (err) {
+        if (err.status === 400) return handleValidationError(err, res);
         console.error("add-family-member error:", err);
         res.status(500).json({ error: "failed to create family member", details: err?.message || err });
+    }
+});
+
+// Frontend telemetry — iframe loads, JS errors, alerts
+router.post("/api/log/frontend", (req, res) => {
+    try {
+        const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip || null;
+        logger.logFrontendEvent({
+            event_type: req.body.event_type || "frontend_event",
+            session_id: req.body.session_id || null,
+            account_id: req.body.account_id || null,
+            user_id: req.body.user_id || null,
+            source_url: req.body.source_url || req.headers.referer || null,
+            user_agent: req.headers["user-agent"] || null,
+            ip,
+            payload: req.body.payload || null,
+            error_message: req.body.error_message || null,
+            error_stack: req.body.error_stack || null
+        });
+        res.json({ ok: true });
+    } catch (err) {
+        console.error("frontend log error:", err);
+        res.status(500).json({ error: "failed to log frontend event" });
     }
 });
 
@@ -134,23 +180,51 @@ router.post("/get_familyMembers", async (req, res) => {
 
 // Create Records
 router.post("/create/insurance", async (req, res) => {
-    const response = await postRequest("/record/1022", { ...req.body });
-    res.json(response);
+    try {
+        validateRequired(req.body, ["pcfclient", "pcfmaininsured", "pcfcompany", "pcfproduct"]);
+        const response = await postRequest("/record/1022", { ...req.body });
+        res.json(response);
+    } catch (err) {
+        if (err.status === 400) return handleValidationError(err, res);
+        console.error("create/insurance error:", err);
+        res.status(500).json({ error: "failed to create insurance", details: err?.message || err });
+    }
 });
 
 router.post("/create/policy-insured", async (req, res) => {
-    const response = await postRequest("/record/1021", { ...req.body });
-    res.json(response);
+    try {
+        validateRequired(req.body, ["pcfsystemfield101", "pcfsystemfield102", "pcfsystemfield109", "pcfsystemfield110"]);
+        const response = await postRequest("/record/1021", { ...req.body });
+        res.json(response);
+    } catch (err) {
+        if (err.status === 400) return handleValidationError(err, res);
+        console.error("create/policy-insured error:", err);
+        res.status(500).json({ error: "failed to create policy-insured", details: err?.message || err });
+    }
 });
 
 router.post("/create/financial", async (req, res) => {
-    const response = await postRequest("/record/opportunity", { ...req.body });
-    res.json(response);
+    try {
+        validateRequired(req.body, ["accountid", "pcfCompany", "pcfProduct"]);
+        const response = await postRequest("/record/opportunity", { ...req.body });
+        res.json(response);
+    } catch (err) {
+        if (err.status === 400) return handleValidationError(err, res);
+        console.error("create/financial error:", err);
+        res.status(500).json({ error: "failed to create financial", details: err?.message || err });
+    }
 });
 
 router.post("/create/transfer", async (req, res) => {
-    const response = await postRequest("/record/1017", { ...req.body });
-    res.json(response);
+    try {
+        validateRequired(req.body, ["pcfFinancial", "pcfTransferringBody"]);
+        const response = await postRequest("/record/1017", { ...req.body });
+        res.json(response);
+    } catch (err) {
+        if (err.status === 400) return handleValidationError(err, res);
+        console.error("create/transfer error:", err);
+        res.status(500).json({ error: "failed to create transfer", details: err?.message || err });
+    }
 });
 
 router.post("/find/employer", async (req, res) => {
@@ -164,13 +238,27 @@ router.post("/find/employer", async (req, res) => {
 });
 
 router.post("/create/employer", async (req, res) => {
-    const response = await postRequest("/record/1018", { ...req.body });
-    res.json(response);
+    try {
+        validateRequired(req.body, ["name", "pcfCompanyNumber"]);
+        const response = await postRequest("/record/1018", { ...req.body });
+        res.json(response);
+    } catch (err) {
+        if (err.status === 400) return handleValidationError(err, res);
+        console.error("create/employer error:", err);
+        res.status(500).json({ error: "failed to create employer", details: err?.message || err });
+    }
 });
 
 router.post("/create/financial-employer", async (req, res) => {
-    const response = await postRequest("/record/1019", { ...req.body });
-    res.json(response);
+    try {
+        validateRequired(req.body, ["pcfFinancial", "PCFEMPLOYER"]);
+        const response = await postRequest("/record/1019", { ...req.body });
+        res.json(response);
+    } catch (err) {
+        if (err.status === 400) return handleValidationError(err, res);
+        console.error("create/financial-employer error:", err);
+        res.status(500).json({ error: "failed to create financial-employer", details: err?.message || err });
+    }
 });
 
 // 🏢 שליפת יחידה עסקית של משתמש (לשיוך פוליסה/פיננסים ליחידה הנכונה)

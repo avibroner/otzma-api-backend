@@ -5,12 +5,64 @@ const params = new URLSearchParams(window.location.search);
 const ACCOUNT_ID = params.get("objectid");
 let policyMortgageOptions = [];
 
+// =======================
+// TELEMETRY — session id + frontend event logging
+// =======================
+const SESSION_ID = (window.crypto && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : "fallback-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+
+function sendFrontendEvent(eventType, extra = {}) {
+    try {
+        const payload = JSON.stringify({
+            event_type: eventType,
+            session_id: SESSION_ID,
+            account_id: ACCOUNT_ID || null,
+            user_id: (typeof ACCOUNT !== "undefined" && ACCOUNT?.ownerId) || null,
+            source_url: location.href,
+            ...extra
+        });
+        if (navigator.sendBeacon) {
+            const blob = new Blob([payload], { type: "application/json" });
+            navigator.sendBeacon("/api/log/frontend", blob);
+        } else {
+            fetch("/api/log/frontend", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: payload,
+                keepalive: true
+            }).catch(() => { });
+        }
+    } catch (e) { /* swallow — telemetry must never break the app */ }
+}
+
+window.addEventListener("error", (e) => {
+    sendFrontendEvent("frontend_error", {
+        error_message: e.message || String(e),
+        error_stack: e.error?.stack || null,
+        payload: { filename: e.filename, lineno: e.lineno, colno: e.colno }
+    });
+});
+
+window.addEventListener("unhandledrejection", (e) => {
+    sendFrontendEvent("frontend_error", {
+        error_message: "unhandledrejection: " + (e.reason?.message || String(e.reason)),
+        error_stack: e.reason?.stack || null
+    });
+});
+
 if (!ACCOUNT_ID) {
+    sendFrontendEvent("iframe_loaded", {
+        payload: { ok: false, reason: "missing_objectid" }
+    });
     alert("❌ לא התקבל מזהה לקוח (objectid)");
     throw new Error("Missing objectid in iframe URL");
 }
 
+sendFrontendEvent("iframe_loaded", { payload: { ok: true } });
+
 console.log("✅ ACCOUNT ID:", ACCOUNT_ID);
+console.log("🔖 SESSION ID:", SESSION_ID);
 
 
 
@@ -36,11 +88,21 @@ const accountId = getObjectIdFromUrl();
 console.log("ACCOUNT ID FROM URL:", accountId);
 
 // Api Functions
+function buildContextHeaders(extra = {}) {
+    return {
+        "Content-Type": "application/json",
+        "x-session-id": SESSION_ID,
+        "x-account-id": ACCOUNT_ID || "",
+        "x-user-id": (typeof ACCOUNT !== "undefined" && ACCOUNT?.ownerId) || "",
+        ...extra
+    };
+}
+
 async function postRequest(path, body) {
     try {
         const response = await fetch(path, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: buildContextHeaders(),
             body: JSON.stringify(body)
         });
         return await response.json();
@@ -52,7 +114,7 @@ async function postRequest(path, body) {
 
 async function getRequest(path) {
     try {
-        const response = await fetch(path);
+        const response = await fetch(path, { headers: buildContextHeaders() });
         return await response.json();
     } catch (error) {
         console.error("GET error:", error);

@@ -3,12 +3,18 @@ const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const path = require("path");
+const logger = require("./lib/logger");
+const activityLog = require("./middleware/activityLog");
 
 const app = express();
 
-app.use(express.json());
+app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
-app.use(cors({ origin: "*" }));
+app.use(cors({ origin: "*", exposedHeaders: ["x-session-id", "x-account-id", "x-user-id"] }));
+
+// Activity logging — must run before routes so it can wrap res.json
+logger.init();
+app.use(activityLog);
 
 // Health check
 app.get("/health", (req, res) => res.json({ status: "ok" }));
@@ -44,6 +50,10 @@ app.use("/api/mislaka", mislakaTransferRouter);
 const harHabituachRouter = require("./routes/har-habituach");
 app.use("/har-habituach", harHabituachRouter);
 
+// Admin dashboard (basic auth)
+const dashboardRouter = require("./routes/dashboard");
+app.use("/", dashboardRouter);
+
 // --- Static files ---
 
 // Quotes: /?objectid=... serves public/quotes/index.html
@@ -60,6 +70,17 @@ app.use("/mislaka", (req, res, next) => {
 
 // Har Habituach: /har-habituach/
 app.use("/har-habituach", express.static(path.join(__dirname, "public", "har-habituach")));
+
+// --- Daily log rotation (90 days retention) ---
+const ROTATION_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const RETENTION_DAYS = Number(process.env.LOG_RETENTION_DAYS) || 90;
+setInterval(() => {
+    try {
+        logger.cleanup(RETENTION_DAYS);
+    } catch (err) {
+        console.error("[logger] rotation failed:", err);
+    }
+}, ROTATION_INTERVAL_MS);
 
 // --- Start ---
 const PORT = process.env.PORT || 3000;

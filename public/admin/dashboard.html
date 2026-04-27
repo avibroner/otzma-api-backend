@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Otzma — Activity Dashboard</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, "Segoe UI", "Heebo", Arial, sans-serif;
+            margin: 0;
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+        .header {
+            background: #1e293b;
+            padding: 14px 22px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #334155;
+        }
+        .header h1 { margin: 0; font-size: 18px; font-weight: 600; }
+        .header .stats { display: flex; gap: 18px; font-size: 13px; color: #94a3b8; }
+        .header .stats .num { color: #f1f5f9; font-weight: 600; margin-right: 4px; }
+        .header .stats .err { color: #fb7185; }
+        .header .stats .orphan { color: #c084fc; }
+
+        .filters {
+            background: #1e293b;
+            padding: 12px 22px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+            border-bottom: 1px solid #334155;
+        }
+        .filters input, .filters select {
+            background: #0f172a;
+            border: 1px solid #334155;
+            color: #e2e8f0;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-family: inherit;
+        }
+        .filters input { width: 220px; }
+        .filters button {
+            background: #3b82f6;
+            border: none;
+            color: white;
+            padding: 7px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        .filters button:hover { background: #2563eb; }
+        .filters button.secondary { background: #475569; }
+        .filters button.secondary:hover { background: #334155; }
+        .filters label { font-size: 13px; color: #94a3b8; display: flex; align-items: center; gap: 4px; }
+
+        .table-wrap { padding: 18px 22px; overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th {
+            background: #1e293b;
+            padding: 10px 12px;
+            text-align: right;
+            font-weight: 600;
+            color: #94a3b8;
+            border-bottom: 1px solid #334155;
+            white-space: nowrap;
+        }
+        td {
+            padding: 9px 12px;
+            border-bottom: 1px solid #1e293b;
+            cursor: pointer;
+        }
+        tr:hover td { background: #1e293b; }
+        tr.row-2xx td { border-right: 3px solid #34d399; }
+        tr.row-4xx td { border-right: 3px solid #fb923c; }
+        tr.row-5xx td { border-right: 3px solid #f87171; }
+        tr.row-orphan td { background: rgba(192, 132, 252, 0.08) !important; border-right: 3px solid #c084fc; }
+        tr.row-validation td { background: rgba(251, 146, 60, 0.08) !important; }
+        tr.row-frontend-error td { background: rgba(248, 113, 113, 0.10) !important; border-right: 3px solid #f87171; }
+        tr.row-iframe-loaded td { color: #94a3b8; }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .badge-2xx { background: #064e3b; color: #34d399; }
+        .badge-4xx { background: #7c2d12; color: #fb923c; }
+        .badge-5xx { background: #7f1d1d; color: #f87171; }
+        .badge-evt { background: #1e293b; color: #94a3b8; border: 1px solid #334155; }
+        .badge-orphan { background: #581c87; color: #c084fc; }
+        .badge-vfail { background: #78350f; color: #fb923c; }
+
+        .mono { font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 12px; }
+        .truncate { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        .drawer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            width: 60vw;
+            max-width: 800px;
+            background: #1e293b;
+            border-right: 1px solid #334155;
+            box-shadow: 6px 0 30px rgba(0, 0, 0, 0.4);
+            transform: translateX(-100%);
+            transition: transform 0.2s ease;
+            z-index: 100;
+            overflow-y: auto;
+        }
+        .drawer.open { transform: translateX(0); }
+        .drawer-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid #334155;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #0f172a;
+            position: sticky;
+            top: 0;
+        }
+        .drawer-header h2 { margin: 0; font-size: 15px; }
+        .drawer-close {
+            background: transparent;
+            border: 1px solid #334155;
+            color: #94a3b8;
+            padding: 4px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .drawer-content { padding: 20px; }
+        .field { margin-bottom: 14px; }
+        .field-label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+        .field-value { font-size: 13px; color: #e2e8f0; word-break: break-all; }
+        .json-block {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 4px;
+            padding: 12px;
+            font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .session-link {
+            color: #60a5fa;
+            cursor: pointer;
+            text-decoration: underline;
+            font-size: 12px;
+        }
+
+        .empty {
+            padding: 60px 20px;
+            text-align: center;
+            color: #64748b;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>📊 Otzma — Activity Dashboard</h1>
+        <div class="stats" id="stats">טוען...</div>
+    </div>
+
+    <div class="filters">
+        <input id="f-account" placeholder="account_id (objectid)">
+        <input id="f-session" placeholder="session_id">
+        <select id="f-event">
+            <option value="">כל סוגי events</option>
+            <option value="api_call">api_call</option>
+            <option value="iframe_loaded">iframe_loaded</option>
+            <option value="frontend_error">frontend_error</option>
+        </select>
+        <input id="f-path" placeholder="path (למשל /create/financial)" style="width:280px;">
+        <label><input type="checkbox" id="f-orphan"> רק orphans</label>
+        <label><input type="checkbox" id="f-vfail"> רק validation failures</label>
+        <label><input type="checkbox" id="f-error"> רק errors (4xx/5xx/orphan)</label>
+        <button onclick="loadEvents()">חיפוש</button>
+        <button class="secondary" onclick="clearFilters()">נקה</button>
+        <button class="secondary" onclick="loadEvents()">רענן</button>
+    </div>
+
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>זמן</th>
+                    <th>סוג</th>
+                    <th>account_id</th>
+                    <th>session</th>
+                    <th>method</th>
+                    <th>path / event</th>
+                    <th>סטטוס</th>
+                    <th>flags</th>
+                    <th>fireberry id</th>
+                    <th>ms</th>
+                </tr>
+            </thead>
+            <tbody id="tbody">
+                <tr><td colspan="10" class="empty">טוען events...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="drawer" id="drawer">
+        <div class="drawer-header">
+            <h2 id="drawer-title">Event details</h2>
+            <button class="drawer-close" onclick="closeDrawer()">סגור</button>
+        </div>
+        <div class="drawer-content" id="drawer-content"></div>
+    </div>
+
+    <script src="/admin/dashboard.js"></script>
+</body>
+
+</html>

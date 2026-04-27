@@ -28,17 +28,21 @@ pm2 logs otzma-api --lines 50
 
 ## מבנה קבצים
 ```
-server.js                    ← Express ראשי, מחבר את כל ה-routes
+server.js                    ← Express ראשי, מחבר את כל ה-routes + activity log middleware
 lib/
   fireberry.js               ← API משותף לפיירברי (postRequest, getRequest, putRequest, deleteRequest)
   excel-parser.js            ← פרסור אקסל הר הביטוח (xlsx)
   har-habituach-helpers.js   ← חיפוש אדם, מחיקה, יצירה, סיכום פרמיות
+  logger.js                  ← SQLite activity log (events table) — init/logApiCall/logFrontendEvent/query/cleanup
+middleware/
+  activityLog.js             ← Express middleware — תופס כל api_call, מסמן orphans, רושם ל-events
 routes/
-  quotes.js                  ← טעינת הצעות (כל ה-routes הישנים מ-server.js המקורי)
+  quotes.js                  ← טעינת הצעות + validation בכל /create/* + endpoint /api/log/frontend
   mislaka-data.js            ← GET /api/mislaka/data?id=XXX — שליפת JSON מפיירברי לדשבורד
   mislaka-webhook.js         ← POST /api/mislaka/webhook — קליטת מסלקה + עדכון ליד + יצירת מוצרים
   mislaka-transfer.js        ← GET/POST /api/mislaka/transfer — דף ניוד עם תצוגת תהליך
   har-habituach.js           ← הר הביטוח — upload Excel + streaming progress
+  dashboard.js               ← /admin/dashboard + /api/admin/* — basic auth (ADMIN_USER/ADMIN_PASS)
 public/
   quotes/                    ← HTML/JS/CSS של טעינת הצעות (iframe בפיירברי)
   mislaka/
@@ -47,6 +51,10 @@ public/
     transfer.html            ← דף ניוד (נפתח מ-iframe בפיירברי)
   har-habituach/
     index.html               ← דף העלאת אקסל הר הביטוח
+  admin/
+    dashboard.html, dashboard.js  ← Activity dashboard — events, filters, drawer
+logs/
+  activity.db                ← SQLite (auto-created, 90-day rotation, .gitignore'd)
 ```
 
 ## URLs
@@ -59,6 +67,8 @@ public/
 | `/api/mislaka/data?id=...` | שליפת JSON מסלקה לדשבורד |
 | `/api/mislaka/transfer?id=...` | דף ניוד מוצר מסלקה |
 | `/har-habituach/` | הר הביטוח — העלאת אקסל |
+| `/admin/dashboard` | **Activity log dashboard** (basic auth) — חקירת בעיות, רשומות יתום, JS errors |
+| `/api/log/frontend` | קליטת telemetry מהדפדפן (iframe loads, JS errors) |
 | `/health` | Health check |
 
 ## אובייקטים בפיירברי
@@ -135,3 +145,26 @@ public/
 - מוצרי מסלקה ישנים נמחקים (soft delete) בכל קליטה חדשה
 - הר הביטוח הומר מ-Next.js ל-Express+vanilla JS
 - Buffer mapping של הר הביטוח נשמר in-memory (לא ב-Redis כמו בגרסה הקודמת)
+
+## מערכת Activity Log + Validation
+**הבעיה שזה פותר:** אם נוצרת רשומה ב-Fireberry בלי FK חיוני (למשל פיננסי בלי `accountid`), אין לנו דרך לדעת מי יצר אותה, מאיזה לקוח, ועם איזה payload.
+
+**שלוש שכבות:**
+1. **Validation** ב-`routes/quotes.js`: כל `/create/*` בודק שדות חובה לפני שמירה. חסר → 400 + לוג עם `is_validation_failure=1`.
+2. **Activity log** ב-`middleware/activityLog.js`: כל api_call נרשם ל-SQLite (`logs/activity.db`) עם session_id, account_id, user_id (מ-headers `x-*` שה-frontend שולח), request body, response, fireberry record id, duration.
+3. **Frontend telemetry** ב-`public/quotes/app.js`: כל פתיחת iframe + JS errors נשלחים ל-`/api/log/frontend`.
+
+**איך משתמשים:**
+- פותחים `https://api.otzma-ins.co.il/admin/dashboard` עם basic auth (env vars `ADMIN_USER` + `ADMIN_PASS` מוגדרים ב-`/var/www/otzma-api/.env`)
+- מסננים: לפי account_id, session_id, event_type, או "רק errors / orphans / validation failures"
+- click על שורה → drawer עם raw request/response JSON
+- "צפה בכל הסשן" → רואים את כל המסע של אותו משתמש מ-iframe load ועד שגיאה
+
+**Headers שה-frontend שולח אוטומטית:**
+- `x-session-id` — UUID שנוצר פעם אחת בטעינת iframe (מחבר frontend ↔ backend)
+- `x-account-id` — ה-objectid מה-URL
+- `x-user-id` — ownerid של הסוכן (אחרי שנטען)
+
+**Rotation:** events ישנים מ-`LOG_RETENTION_DAYS` (ברירת מחדל 90) נמחקים אוטומטית פעם ביום (`setInterval` ב-server.js).
+
+**Orphan detection:** middleware מסמן `is_orphan=1` כשcreate הצליח (200) אבל חסר FK חיוני בפ-payload לפי טבלת `ORPHAN_RULES` ב-`middleware/activityLog.js`.
