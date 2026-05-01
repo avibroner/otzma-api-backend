@@ -78,6 +78,10 @@ const SPLIT_PRODUCT_NAME = "בריאות ומחלות";
 const SPLIT_HEALTH_PRODUCT_NAME = "בריאות";
 const SPLIT_DISEASE_PRODUCT_NAME = "מחלות מורחב";
 
+// 📕 picklist values של pcfoperationstatus בפוליסה (1022).
+// 1=נשלח לעוצמה, 3=נשלח ליצרן, 28=ביטול.
+const CANCELLATION_OPERATION_STATUS_ID = 28;
+
 
 let categories = {}
 let companies = []
@@ -650,6 +654,12 @@ function insuranceOfferTab(cardId, headerContent, productName, isCancellation = 
                 <input type="hidden" class="insurance_action_type" value="מכירה">
             </div>
 
+            <!-- סטטוס הצעה — קבוע "בוטל" -->
+            <div class="form-group">
+                <label>סטטוס הצעה</label>
+                <input type="text" value="בוטל" disabled style="background:#fee2e2; color:#991b1b; font-weight:600;">
+            </div>
+
             <!-- סטטוס שימור — קבוע "בקשת ביטול" -->
             <div class="form-group">
                 <label>סטטוס שימור</label>
@@ -660,6 +670,24 @@ function insuranceOfferTab(cardId, headerContent, productName, isCancellation = 
             <div class="form-group">
                 <label>תאריך הפקה</label>
                 <input type="text" class="insurance_issue_date" placeholder="DD-MM-YYYY" inputmode="numeric">
+            </div>
+
+            <!-- תאריך ביטול -->
+            <div class="form-group">
+                <label>תאריך ביטול</label>
+                <input type="text" class="insurance_cancel_date" placeholder="DD-MM-YYYY" inputmode="numeric">
+            </div>
+
+            <!-- סיבת ביטול (אופציונלי) -->
+            <div class="form-group">
+                <label>סיבת ביטול</label>
+                <select class="insurance_cancel_reason">
+                    <option value="">— ללא —</option>
+                    <option value="1">בוטל עקב חוב ❗</option>
+                    <option value="2">עבר לסוכן חיצוני</option>
+                    <option value="3">טוויסטינג</option>
+                    <option value="4">אחר</option>
+                </select>
             </div>
           `
         : `
@@ -1708,6 +1736,8 @@ async function saveInsurancePolicies(account_id, btn) {
         // 5️⃣ סטטוס פוליסה / שדות ביטול
         let operationStatus = null;
         let issueDateIso = null;
+        let cancelDateIso = null;
+        let cancelReason = null;
 
         if (isCancellation) {
             const issueDateStr = card.querySelector(".insurance_issue_date")?.value?.trim();
@@ -1715,6 +1745,15 @@ async function saveInsurancePolicies(account_id, btn) {
             if (!issueDateIso) {
                 throw new Error("חסר תאריך הפקה תקין בפוליסת ביטול (DD-MM-YYYY)");
             }
+
+            const cancelDateStr = card.querySelector(".insurance_cancel_date")?.value?.trim();
+            cancelDateIso = parseDDMMYYYY(cancelDateStr);
+            if (!cancelDateIso) {
+                throw new Error("חסר תאריך ביטול תקין בפוליסת ביטול (DD-MM-YYYY)");
+            }
+
+            const cancelReasonRaw = card.querySelector(".insurance_cancel_reason")?.value;
+            cancelReason = cancelReasonRaw ? Number(cancelReasonRaw) : null;
         } else {
             const statusText =
                 card.querySelector(".insurance_operation_status")?.value;
@@ -1767,10 +1806,16 @@ async function saveInsurancePolicies(account_id, btn) {
         };
 
         if (isCancellation) {
-            // סטטוס שימור = "בקשת ביטול" + תאריך הפקה. סטטוס הצעה ותאריך מכירה לא נשלחים
-            // כדי לא להפעיל את אוטומציית פיירברי ש"מסתיימת בהצלחה" אחרי הזנת פרמיה.
+            // סטטוס שימור = "בקשת ביטול", סטטוס הצעה = "בוטל", תאריכי הפקה+ביטול חובה.
+            // אוטומציית פיירברי שמסיימת בהצלחה אחרי הזנת פרמיה — חייבת להיחסם בתנאי
+            // pcfretentionstatus != 1 (תיקון בצד פיירברי), אחרת תדרוס את הסטטוס.
             policyPayload.pcfretentionstatus = 1;
+            policyPayload.pcfoperationstatus = CANCELLATION_OPERATION_STATUS_ID;
             policyPayload.pcfissuedate = issueDateIso;
+            policyPayload.pcfcanceldate = cancelDateIso;
+            if (cancelReason !== null) {
+                policyPayload.pcfcancelreason = cancelReason;
+            }
         } else {
             policyPayload.pcfoperationstatus = operationStatus;
             policyPayload.pcfsystemfield104 = todayDate;

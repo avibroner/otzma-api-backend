@@ -211,6 +211,8 @@
             font-weight: 600;
             color: #991b1b;
             user-select: none;
+            white-space: nowrap;
+            flex-shrink: 0;
         }
 
         .cancellation-toggle input[type="checkbox"] {
