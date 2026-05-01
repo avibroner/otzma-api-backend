@@ -647,6 +647,12 @@ function insuranceOfferTab(cardId, headerContent, productName, isCancellation = 
     // ===== שדות סטטוס/סוג פעולה/תאריך =====
     const statusFields = isCancellation
         ? `
+            <!-- מספר פוליסה — חובה בביטול (קיים כי הפוליסה הופקה בעבר) -->
+            <div class="form-group">
+                <label>מספר פוליסה</label>
+                <input type="text" class="insurance_policy_number" placeholder="מספר פוליסה">
+            </div>
+
             <!-- סוג פעולה — קבוע "מכירה" -->
             <div class="form-group">
                 <label>סוג פעולה</label>
@@ -1738,8 +1744,14 @@ async function saveInsurancePolicies(account_id, btn) {
         let issueDateIso = null;
         let cancelDateIso = null;
         let cancelReason = null;
+        let policyNumber = null;
 
         if (isCancellation) {
+            policyNumber = card.querySelector(".insurance_policy_number")?.value?.trim();
+            if (!policyNumber) {
+                throw new Error("חסר מספר פוליסה בפוליסת ביטול");
+            }
+
             const issueDateStr = card.querySelector(".insurance_issue_date")?.value?.trim();
             issueDateIso = parseDDMMYYYY(issueDateStr);
             if (!issueDateIso) {
@@ -1809,6 +1821,7 @@ async function saveInsurancePolicies(account_id, btn) {
             // סטטוס שימור = "בקשת ביטול", סטטוס הצעה = "בוטל", תאריכי הפקה+ביטול חובה.
             // אוטומציית פיירברי שמסיימת בהצלחה אחרי הזנת פרמיה — חייבת להיחסם בתנאי
             // pcfretentionstatus != 1 (תיקון בצד פיירברי), אחרת תדרוס את הסטטוס.
+            policyPayload.name = policyNumber;
             policyPayload.pcfretentionstatus = 1;
             policyPayload.pcfoperationstatus = CANCELLATION_OPERATION_STATUS_ID;
             policyPayload.pcfissuedate = issueDateIso;
