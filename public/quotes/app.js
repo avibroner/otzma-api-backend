@@ -551,20 +551,21 @@ function syncPrimaryInsuredWithTable(selectEl) {
     });
 }
 
-function insuranceOfferTab(cardId, headerContent, productName) {
+function insuranceOfferTab(cardId, headerContent, productName, isCancellation = false) {
 
     const isHealthAndDiseases = productName === SPLIT_PRODUCT_NAME;
+    const premiumLabelSuffix = isCancellation ? " בפועל" : "";
 
     // ===== כותרות פרמיה + סכום ביטוח =====
     const premiumAndAmountHeader = isHealthAndDiseases
         ? `
-            <th>פרמיית בריאות</th>
-            <th>פרמיית מחלות</th>
+            <th>פרמיית בריאות${premiumLabelSuffix}</th>
+            <th>פרמיית מחלות${premiumLabelSuffix}</th>
             <th>סכום ביטוח בריאות</th>
             <th>סכום ביטוח מחלות</th>
           `
         : `
-            <th>פרמיה</th>
+            <th>פרמיה${premiumLabelSuffix}</th>
             <th>סכום ביטוח</th>
           `;
 
@@ -639,8 +640,78 @@ function insuranceOfferTab(cardId, headerContent, productName) {
             </td>
           `;
 
+    // ===== שדות סטטוס/סוג פעולה/תאריך =====
+    const statusFields = isCancellation
+        ? `
+            <!-- סוג פעולה — קבוע "מכירה" -->
+            <div class="form-group">
+                <label>סוג פעולה</label>
+                <input type="text" value="מכירה" disabled style="background:#f1f5f9;">
+                <input type="hidden" class="insurance_action_type" value="מכירה">
+            </div>
+
+            <!-- סטטוס שימור — קבוע "בקשת ביטול" -->
+            <div class="form-group">
+                <label>סטטוס שימור</label>
+                <input type="text" value="בקשת ביטול ❌" disabled style="background:#fee2e2; color:#991b1b; font-weight:600;">
+            </div>
+
+            <!-- תאריך הפקה -->
+            <div class="form-group">
+                <label>תאריך הפקה</label>
+                <input type="text" class="insurance_issue_date" placeholder="DD-MM-YYYY" inputmode="numeric">
+            </div>
+          `
+        : `
+            <!-- סוג פעולה -->
+            <div class="form-group">
+                <label>סוג פעולה</label>
+                <select class="insurance_action_type">
+                    <option>מכירה</option>
+                    <option>מינוי סוכן</option>
+                </select>
+            </div>
+
+            <!-- סטטוס פוליסה -->
+            <div class="form-group">
+                <label>סטטוס</label>
+                <select class="insurance_operation_status">
+                    <option value="נשלח ליצרן" selected>נשלח ליצרן</option>
+                    <option value="נשלח לעוצמה">נשלח לעוצמה</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>הנחה (אוטומטי)</label>
+                <input type="text" disabled placeholder="-" style="background:#f1f5f9;">
+            </div>
+          `;
+
+    // ===== משעבד — לא רלוונטי בביטול =====
+    const pledgerField = isCancellation
+        ? ''
+        : `
+            <!-- משעבד (ריסק משכנתא / משועבד) -->
+            <div class="form-group policy-pledger-wrapper" style="display:none;">
+                <label>משעבד</label>
+                <select class="policy_mortgage">
+                    <option value="" disabled selected>בחר משעבד</option>
+                    ${(policyMortgageOptions || []).map(o => `
+                        <option value="${o.value}">${o.label}</option>
+                    `).join("")}
+                </select>
+            </div>
+          `;
+
+    // ===== עמודות הנחה — מוסתרות בביטול =====
+    const tableDiscountHeader = isCancellation ? '' : discountHeader;
+    const tableDiscountCells = isCancellation ? '' : discountCells;
+
+    const cancellationClass = isCancellation ? ' cancellation-card' : '';
+    const cancellationDataAttr = isCancellation ? ' data-cancellation="true"' : '';
+
     const html = `
-<div class="card theme-ins open" id="${cardId}" data-type="ins">
+<div class="card theme-ins open${cancellationClass}" id="${cardId}" data-type="ins"${cancellationDataAttr}>
     <div class="card-header" onclick="toggleCard('${cardId}')">
         ${headerContent}
     </div>
@@ -670,41 +741,10 @@ function insuranceOfferTab(cardId, headerContent, productName) {
                     `).join('')}
                 </select>
             </div>
-            <!-- משעבד (ריסק משכנתא / משועבד) -->
-            <div class="form-group policy-pledger-wrapper" style="display:none;">
-                <label>משעבד</label>
-                <select class="policy_mortgage">
-        <option value="" disabled selected>בחר משעבד</option>
-                    ${(policyMortgageOptions || []).map(o => `
-                        <option value="${o.value}">${o.label}</option>
-                    `).join("")}
-                </select>
-            </div>
 
+            ${pledgerField}
 
-
-            <!-- סוג פעולה -->
-            <div class="form-group">
-                <label>סוג פעולה</label>
-                <select class="insurance_action_type">
-                    <option>מכירה</option>
-                    <option>מינוי סוכן</option>
-                </select>
-            </div>
-
-            <!-- סטטוס פוליסה -->
-            <div class="form-group">
-                <label>סטטוס</label>
-                <select class="insurance_operation_status">
-                    <option value="נשלח ליצרן" selected>נשלח ליצרן</option>
-                    <option value="נשלח לעוצמה">נשלח לעוצמה</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label>הנחה (אוטומטי)</label>
-                <input type="text" disabled placeholder="-" style="background:#f1f5f9;">
-            </div>
+            ${statusFields}
         </div>
 
         <div style="border-top: 1px dashed #cbd5e1; padding-top: 10px;">
@@ -717,7 +757,7 @@ function insuranceOfferTab(cardId, headerContent, productName) {
                         <th>שם מבוטח</th>
                         <th>קשר משפחתי</th>
                         ${premiumAndAmountHeader}
-                        ${discountHeader}
+                        ${tableDiscountHeader}
                     </tr>
                 </thead>
 
@@ -739,7 +779,7 @@ function insuranceOfferTab(cardId, headerContent, productName) {
                         </td>
 
                         ${premiumAndAmountCells}
-                        ${discountCells}
+                        ${tableDiscountCells}
                     </tr>
                     `).join('')}
                 </tbody>
@@ -878,6 +918,12 @@ function addNewOffer() {
     if (!value) return alert("נא לבחור מוצר");
 
     const [productName, type] = value.split('|');
+    const isCancellation = isCancellationMode();
+
+    if (isCancellation && type !== 'ins') {
+        return alert("מצב ביטול נתמך כרגע רק עבור פוליסות ביטוח");
+    }
+
     const container = document.getElementById('offersContainer');
     const cardId = 'card_' + Date.now();
 
@@ -885,9 +931,13 @@ function addNewOffer() {
     document.querySelectorAll('.card').forEach(c => c.classList.remove('open'));
 
     const category_name = getCategoryName(type);
+    const cancellationBadge = isCancellation
+        ? `<span class="badge cancellation-badge">📕 ביטול</span>`
+        : '';
 
     const headerContent = `
         <span class="badge">${category_name}</span>
+        ${cancellationBadge}
         <div class="header-breadcrumb">
             <span class="hb-item">${productName}</span>
             <span class="hb-sep">›</span>
@@ -901,7 +951,7 @@ function addNewOffer() {
 
     let html = '';
     if (type === 'ins') {
-        html = insuranceOfferTab(cardId, headerContent, productName);
+        html = insuranceOfferTab(cardId, headerContent, productName, isCancellation);
     } else {
         html = financeOfferTab(cardId, headerContent);
     }
@@ -1598,6 +1648,8 @@ async function saveInsurancePolicies(account_id, btn) {
 
     for (let card of insuranceCards) {
 
+        const isCancellation = card.dataset.cancellation === "true";
+
         // 1️⃣ מוצר
         const product = getInsuranceProductFromCard(card);
         if (!product) {
@@ -1616,11 +1668,11 @@ async function saveInsurancePolicies(account_id, btn) {
             throw new Error("חסר מבוטח ראשי בפוליסה");
         }
 
-        // 🔒 משעבד – חובה בריסק משכנתא / משועבד
+        // 🔒 משעבד – חובה בריסק משכנתא / משועבד (לא רלוונטי בביטול)
         let mortgageValue = null;
         if (
-            product.name === 'ריסק משכנתא' ||
-            product.name === 'ריסק משועבד'
+            !isCancellation &&
+            (product.name === 'ריסק משכנתא' || product.name === 'ריסק משועבד')
         ) {
             mortgageValue = card.querySelector(".policy_mortgage")?.value;
 
@@ -1641,25 +1693,41 @@ async function saveInsurancePolicies(account_id, btn) {
 
         const primaryIdNumber = primaryMember.id;
 
-        // 4️⃣ סוג פעולה
-        const actionTypeText = getInsuranceActionTypeFromCard(card);
-        const actionTypeId = getActionTypeId(actionTypeText);
-        if (!actionTypeId) {
-            throw new Error("סוג פעולה לא חוקי בפוליסה");
+        // 4️⃣ סוג פעולה — בביטול קבוע "מכירה"
+        let actionTypeId;
+        if (isCancellation) {
+            actionTypeId = getActionTypeId("מכירה");
+        } else {
+            const actionTypeText = getInsuranceActionTypeFromCard(card);
+            actionTypeId = getActionTypeId(actionTypeText);
+            if (!actionTypeId) {
+                throw new Error("סוג פעולה לא חוקי בפוליסה");
+            }
         }
 
-        // 5️⃣ סטטוס פוליסה
-        const statusText =
-            card.querySelector(".insurance_operation_status")?.value;
+        // 5️⃣ סטטוס פוליסה / שדות ביטול
+        let operationStatus = null;
+        let issueDateIso = null;
 
-        const statusMap = {
-            "נשלח לעוצמה": 1,
-            "נשלח ליצרן": 3
-        };
+        if (isCancellation) {
+            const issueDateStr = card.querySelector(".insurance_issue_date")?.value?.trim();
+            issueDateIso = parseDDMMYYYY(issueDateStr);
+            if (!issueDateIso) {
+                throw new Error("חסר תאריך הפקה תקין בפוליסת ביטול (DD-MM-YYYY)");
+            }
+        } else {
+            const statusText =
+                card.querySelector(".insurance_operation_status")?.value;
 
-        const operationStatus = statusMap[statusText];
-        if (!operationStatus) {
-            throw new Error("סטטוס פוליסה לא חוקי");
+            const statusMap = {
+                "נשלח לעוצמה": 1,
+                "נשלח ליצרן": 3
+            };
+
+            operationStatus = statusMap[statusText];
+            if (!operationStatus) {
+                throw new Error("סטטוס פוליסה לא חוקי");
+            }
         }
 
         // 6️⃣ מבוטחים בפוליסה
@@ -1672,8 +1740,8 @@ async function saveInsurancePolicies(account_id, btn) {
             mainInsuredAmount = mainInsuredData.insuranceAmount;
         }
 
-        // 7️⃣ הנחת מבוטח ראשי – אופציונלית
-        const mainDiscountRaw = getMainInsuredPolicyDiscount(card);
+        // 7️⃣ הנחת מבוטח ראשי – אופציונלית, לא רלוונטית בביטול
+        const mainDiscountRaw = isCancellation ? null : getMainInsuredPolicyDiscount(card);
         const mainDiscount =
             mainDiscountRaw !== null &&
                 mainDiscountRaw !== undefined &&
@@ -1688,7 +1756,6 @@ async function saveInsurancePolicies(account_id, btn) {
             pcfcompany: companyId,
             pcfproduct: product.id,
             pcfsaleoragent: actionTypeId,
-            pcfoperationstatus: operationStatus,
 
             // 🔁 העתקה מהלקוח
             ownerid: ACCOUNT.ownerId,
@@ -1696,11 +1763,18 @@ async function saveInsurancePolicies(account_id, btn) {
             pcfsystemfield132: ACCOUNT.businessUnitId,
 
             // 🆔 ת.ז מבוטח ראשי
-            pcfsystemfield121: primaryIdNumber,
-
-            // 👇 הוספת תאריך המכירה לפוליסה
-            pcfsystemfield104: todayDate
+            pcfsystemfield121: primaryIdNumber
         };
+
+        if (isCancellation) {
+            // סטטוס שימור = "בקשת ביטול" + תאריך הפקה. סטטוס הצעה ותאריך מכירה לא נשלחים
+            // כדי לא להפעיל את אוטומציית פיירברי ש"מסתיימת בהצלחה" אחרי הזנת פרמיה.
+            policyPayload.pcfretentionstatus = 1;
+            policyPayload.pcfissuedate = issueDateIso;
+        } else {
+            policyPayload.pcfoperationstatus = operationStatus;
+            policyPayload.pcfsystemfield104 = todayDate;
+        }
 
         //סכום ביטוח מבוטח ראשי בפוליסה (אופציונלי לבריאות/בריאות+מחלות)
         if (mainInsuredAmount !== null) {
@@ -1752,17 +1826,21 @@ async function saveInsurancePolicies(account_id, btn) {
             const insuredPayload = {
                 pcfsystemfield101: policyId,
                 pcfsystemfield102: insured.contactId,
-                pcfsystemfield105: insured.premium,
                 pcfsystemfield109: productIdToUse,
                 pcfsystemfield110: companyId,
 
                 // 🔁 העתקה מהלקוח
                 ownerid: ACCOUNT.ownerId,
-                pcfsystemfield112: ACCOUNT.financialPlannerId,
-
-                //תאריך מכירה למבוטח בפוליסה
-                pcfsystemfield114: todayDate
+                pcfsystemfield112: ACCOUNT.financialPlannerId
             };
+
+            if (isCancellation) {
+                // פרמיה בפועל בשדה נפרד; לא שולחים תאריך מכירה.
+                insuredPayload.pcfsystemfield106 = insured.premium;
+            } else {
+                insuredPayload.pcfsystemfield105 = insured.premium;
+                insuredPayload.pcfsystemfield114 = todayDate;
+            }
 
             //סכום ביטוח (אופציונלי לבריאות/בריאות+מחלות)
             if (insured.insuranceAmount !== null && insured.insuranceAmount !== undefined) {
@@ -1770,6 +1848,7 @@ async function saveInsurancePolicies(account_id, btn) {
             }
 
             if (
+                !isCancellation &&
                 insured.discount !== null &&
                 insured.discount !== undefined &&
                 insured.discount !== ""
@@ -1784,6 +1863,21 @@ async function saveInsurancePolicies(account_id, btn) {
             }
         }
     }
+}
+
+// DD-MM-YYYY → ISO. פיירברי דורש ISO; חצות UTC כדי להישאר באותו יום בכל אזור זמן.
+function parseDDMMYYYY(str) {
+    if (!str) return null;
+    const m = str.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+    if (!m) return null;
+    const [, dd, mm, yyyy] = m;
+    const day = Number(dd);
+    const month = Number(mm);
+    const year = Number(yyyy);
+    if (day < 1 || day > 31 || month < 1 || month > 12 || year < 1900) return null;
+    const d = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+    if (isNaN(d.getTime()) || d.getUTCDate() !== day || d.getUTCMonth() !== month - 1) return null;
+    return d.toISOString();
 }
 
 async function saveFinancialProducts(account_id, btn) {
@@ -2057,4 +2151,43 @@ window.onload = async function () {
     displayProducts(categories);
     productCategoryReview();
     chooseCategory();
+    setupCancellationToggle();
+}
+
+// =========================
+// 📕 Cancellation Toggle
+// =========================
+// כשמסומן — מגביל את הקטגוריה ל"ביטוח" בלבד (מבנה הביטול נתמך רק לאובייקט פוליסה 1022).
+// בעת לחיצה על "+ צור כרטיס הצעה" — `addNewOffer` קורא את ה-state הזה ויוצר כרטיס במצב ביטול.
+function isCancellationMode() {
+    return document.getElementById("cancellationToggle")?.checked === true;
+}
+
+function setupCancellationToggle() {
+    const toggle = document.getElementById("cancellationToggle");
+    const categorySelect = document.getElementById("categorySelector");
+    const productSelect = document.getElementById("productSelector");
+
+    if (!toggle || !categorySelect || !productSelect) return;
+
+    toggle.addEventListener("change", () => {
+        if (toggle.checked) {
+            const insuranceOpt = Array.from(categorySelect.options)
+                .find(opt => opt.value === "ביטוח");
+            if (!insuranceOpt) {
+                alert("קטגוריית ביטוח לא נטענה — לא ניתן להפעיל מצב ביטול");
+                toggle.checked = false;
+                return;
+            }
+            categorySelect.value = "ביטוח";
+            categorySelect.dispatchEvent(new Event("change"));
+            categorySelect.disabled = true;
+        } else {
+            categorySelect.disabled = false;
+            categorySelect.selectedIndex = 0;
+            productSelect.value = "";
+            productSelect.disabled = true;
+            productSelect.querySelectorAll("optgroup").forEach(g => g.style.display = "none");
+        }
+    });
 }

@@ -198,6 +198,49 @@
             font-weight: 600;
         }
 
+        /* --- CANCELLATION TOGGLE --- */
+        .cancellation-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            color: #991b1b;
+            user-select: none;
+        }
+
+        .cancellation-toggle input[type="checkbox"] {
+            cursor: pointer;
+            margin: 0;
+        }
+
+        .cancellation-toggle:has(input:checked) {
+            background: #fee2e2;
+            border-color: #dc2626;
+        }
+
+        /* כרטיס פוליסה במצב ביטול: גוון אדום מבדל */
+        .cancellation-card {
+            border-color: #fca5a5 !important;
+            box-shadow: 0 1px 4px rgba(220, 38, 38, 0.15);
+        }
+
+        .cancellation-card .card-header {
+            background: #fef2f2 !important;
+            border-left-color: #dc2626 !important;
+            color: #991b1b !important;
+        }
+
+        .cancellation-badge {
+            background: #fecaca !important;
+            color: #991b1b !important;
+            border-color: #fca5a5 !important;
+        }
+
         /* --- CARDS (ACCORDION) --- */
         .card {
             background: white;
