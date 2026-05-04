@@ -62,6 +62,24 @@ router.delete("/api/whatsapp-templates/:id", basicAuth, (req, res) => {
     }
 });
 
+// POST /api/whatsapp-templates/:id/restore — re-activate a soft-deleted template
+router.post("/api/whatsapp-templates/:id/restore", basicAuth, (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        if (!Number.isInteger(id) || id <= 0) {
+            return res.status(400).json({ error: "מזהה לא תקין" });
+        }
+        const result = templatesDb.activate(id);
+        if (!result.changed) {
+            return res.status(404).json({ error: "תבנית לא נמצאה או כבר פעילה" });
+        }
+        res.json({ ok: true });
+    } catch (err) {
+        console.error("[whatsapp-templates] restore failed:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Admin page
 router.get("/admin/whatsapp-templates", basicAuth, (req, res) => {
     res.sendFile(path.join(__dirname, "..", "public", "admin", "whatsapp-templates.html"));

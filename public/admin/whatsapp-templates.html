@@ -97,7 +97,26 @@
         button:hover { background: #2563eb; }
         button.danger { background: #dc2626; padding: 5px 11px; font-size: 12px; }
         button.danger:hover { background: #b91c1c; }
+        button.restore { background: #059669; padding: 5px 11px; font-size: 12px; }
+        button.restore:hover { background: #047857; }
         button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .list-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .list-controls .toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            color: #94a3b8;
+            user-select: none;
+        }
+        .list-controls .toggle input { cursor: pointer; }
 
         .message {
             font-size: 13px;
@@ -133,6 +152,22 @@
             font-weight: 600;
         }
         .template-meta .id { color: #475569; }
+        .template-meta .deleted-badge {
+            background: #7f1d1d;
+            color: #fecaca;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .template-card.deleted {
+            opacity: 0.55;
+            border-color: #475569;
+        }
+        .template-card.deleted .template-body {
+            text-decoration: line-through;
+            color: #94a3b8;
+        }
         .template-body {
             white-space: pre-wrap;
             font-size: 13px;
@@ -182,12 +217,19 @@
             </div>
         </div>
 
-        <h2 class="section-title">תבניות קיימות</h2>
+        <div class="list-controls">
+            <h2 class="section-title" style="margin: 0;">תבניות קיימות</h2>
+            <label class="toggle">
+                <input type="checkbox" id="show-deleted">
+                <span>הצג גם מחוקים</span>
+            </label>
+        </div>
         <div id="templates-container" class="loading">טוען תבניות...</div>
     </div>
 
     <script>
         const $ = id => document.getElementById(id);
+        let allTemplates = [];
 
         async function loadTemplates() {
             const container = $("templates-container");
@@ -195,8 +237,9 @@
                 const res = await fetch("/api/whatsapp-templates", { credentials: "same-origin" });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const data = await res.json();
+                allTemplates = data.templates || [];
                 renderStats(data.stats);
-                renderTemplates(data.templates || []);
+                renderTemplates();
             } catch (err) {
                 container.className = "empty";
                 container.textContent = "שגיאה בטעינת תבניות: " + err.message;
@@ -211,31 +254,36 @@
             `;
         }
 
-        function renderTemplates(templates) {
+        function renderTemplates() {
             const container = $("templates-container");
-            const active = templates.filter(t => t.is_active);
+            const showDeleted = $("show-deleted").checked;
+            const visible = showDeleted ? allTemplates : allTemplates.filter(t => t.is_active);
 
-            if (active.length === 0) {
+            if (visible.length === 0) {
                 container.className = "empty";
-                container.textContent = "אין תבניות פעילות. הוסף את הראשונה בטופס למעלה.";
+                container.textContent = showDeleted
+                    ? "אין תבניות. הוסף את הראשונה בטופס למעלה."
+                    : "אין תבניות פעילות. הוסף את הראשונה בטופס למעלה.";
                 return;
             }
 
             container.className = "templates-list";
             container.innerHTML = "";
-            active.forEach(t => {
+            visible.forEach(t => {
                 const card = document.createElement("div");
-                card.className = "template-card";
+                card.className = "template-card" + (t.is_active ? "" : " deleted");
 
                 const content = document.createElement("div");
                 content.className = "template-content";
 
                 const meta = document.createElement("div");
                 meta.className = "template-meta";
-                meta.innerHTML = `
+                let metaHtml = `
                     <span class="name">${escapeHtml(t.name || "ללא שם")}</span>
                     <span class="id">#${t.id}</span>
                 `;
+                if (!t.is_active) metaHtml += `<span class="deleted-badge">מחוק</span>`;
+                meta.innerHTML = metaHtml;
 
                 const body = document.createElement("div");
                 body.className = "template-body";
@@ -244,15 +292,38 @@
                 content.appendChild(meta);
                 content.appendChild(body);
 
-                const delBtn = document.createElement("button");
-                delBtn.className = "danger";
-                delBtn.textContent = "מחק";
-                delBtn.onclick = () => deleteTemplate(t.id, t.name);
+                const actionBtn = document.createElement("button");
+                if (t.is_active) {
+                    actionBtn.className = "danger";
+                    actionBtn.textContent = "מחק";
+                    actionBtn.onclick = () => deleteTemplate(t.id, t.name);
+                } else {
+                    actionBtn.className = "restore";
+                    actionBtn.textContent = "שחזר";
+                    actionBtn.onclick = () => restoreTemplate(t.id, t.name);
+                }
 
                 card.appendChild(content);
-                card.appendChild(delBtn);
+                card.appendChild(actionBtn);
                 container.appendChild(card);
             });
+        }
+
+        async function restoreTemplate(id, name) {
+            const label = name || `תבנית #${id}`;
+            try {
+                const res = await fetch(`/api/whatsapp-templates/${id}/restore`, {
+                    method: "POST",
+                    credentials: "same-origin"
+                });
+                if (!res.ok) {
+                    const data = await res.json().catch(() => ({}));
+                    throw new Error(data.error || `HTTP ${res.status}`);
+                }
+                await loadTemplates();
+            } catch (err) {
+                alert(`שגיאה בשחזור "${label}": ` + err.message);
+            }
         }
 
         async function addTemplate() {
@@ -325,6 +396,7 @@
         }
 
         $("add-btn").addEventListener("click", addTemplate);
+        $("show-deleted").addEventListener("change", renderTemplates);
         loadTemplates();
     </script>
 </body>
