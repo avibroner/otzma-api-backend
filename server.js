@@ -4,6 +4,8 @@ const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const path = require("path");
 const logger = require("./lib/logger");
+const whatsappTemplatesDb = require("./lib/whatsapp-templates-db");
+const seedWhatsappTemplates = require("./scripts/seed-whatsapp-templates");
 const activityLog = require("./middleware/activityLog");
 
 const app = express();
@@ -17,6 +19,15 @@ app.use(cors({ origin: "*", exposedHeaders: ["x-session-id", "x-account-id", "x-
 
 // Activity logging — must run before routes so it can wrap res.json
 logger.init();
+
+// WhatsApp templates DB — initialize and seed on first run
+whatsappTemplatesDb.init();
+try {
+    seedWhatsappTemplates.run();
+} catch (err) {
+    console.error("[whatsapp-templates] seed failed:", err);
+}
+
 app.use(activityLog);
 
 // Health check
@@ -56,6 +67,10 @@ app.use("/har-habituach", harHabituachRouter);
 // Admin dashboard (basic auth)
 const dashboardRouter = require("./routes/dashboard");
 app.use("/", dashboardRouter);
+
+// WhatsApp templates (basic auth — admin page + n8n random endpoint)
+const whatsappTemplatesRouter = require("./routes/whatsapp-templates");
+app.use("/", whatsappTemplatesRouter);
 
 // --- Static files ---
 

@@ -4,11 +4,12 @@
 עוצמה ביטוח (Otzma Insurance) — סוכנות ביטוח ופיננסים.
 
 ## מה הפרויקט עושה
-שרת Express אחד שמאחד 3 מערכות שעובדות מול Fireberry CRM:
+שרת Express אחד שמאחד 4 מערכות:
 
 1. **טעינת הצעות** — iframe בפיירברי ליצירת פוליסות, פיננסים, מעסיקים
 2. **מסלקה** — קליטת נתוני מסלקה פנסיונית, יצירת מוצרי מסלקה, ניוד
 3. **הר הביטוח** — העלאת אקסל הר הביטוח ויצירת רשומות בפיירברי
+4. **תבניות וואטסאפ** — ניהול תבניות הודעה לסנריו של n8n (החליף Make Data Store)
 
 ## דומיין ושרת
 - דומיין: `api.otzma-ins.co.il`
@@ -34,15 +35,21 @@ lib/
   excel-parser.js            ← פרסור אקסל הר הביטוח (xlsx)
   har-habituach-helpers.js   ← חיפוש אדם, מחיקה, יצירה, סיכום פרמיות
   logger.js                  ← SQLite activity log (events table) — init/logApiCall/logFrontendEvent/query/cleanup
+  whatsapp-templates-db.js   ← SQLite — טבלת תבניות וואטסאפ (init/listAll/getRandom/create/deactivate)
 middleware/
   activityLog.js             ← Express middleware — תופס כל api_call, מסמן orphans, רושם ל-events
+  basicAuth.js               ← basic auth משותף ל-admin pages (ADMIN_USER/ADMIN_PASS)
 routes/
   quotes.js                  ← טעינת הצעות + validation בכל /create/* + endpoint /api/log/frontend
   mislaka-data.js            ← GET /api/mislaka/data?id=XXX — שליפת JSON מפיירברי לדשבורד
   mislaka-webhook.js         ← POST /api/mislaka/webhook — קליטת מסלקה + עדכון ליד + יצירת מוצרים
   mislaka-transfer.js        ← GET/POST /api/mislaka/transfer — דף ניוד עם תצוגת תהליך
   har-habituach.js           ← הר הביטוח — upload Excel + streaming progress
-  dashboard.js               ← /admin/dashboard + /api/admin/* — basic auth (ADMIN_USER/ADMIN_PASS)
+  dashboard.js               ← /admin/dashboard + /api/admin/* — basic auth
+  whatsapp-templates.js      ← /api/whatsapp-templates/* + /admin/whatsapp-templates — basic auth
+scripts/
+  templates-seed.json        ← 20 תבניות וואטסאפ (אחרי dedup מ-22 ב-Make)
+  seed-whatsapp-templates.js ← Seed script — רץ אוטומטית ב-server.js בעלייה (idempotent)
 public/
   quotes/                    ← HTML/JS/CSS של טעינת הצעות (iframe בפיירברי)
   mislaka/
@@ -52,9 +59,12 @@ public/
   har-habituach/
     index.html               ← דף העלאת אקסל הר הביטוח
   admin/
-    dashboard.html, dashboard.js  ← Activity dashboard — events, filters, drawer
+    dashboard.html, dashboard.js     ← Activity dashboard — events, filters, drawer
+    whatsapp-templates.html          ← ניהול תבניות וואטסאפ (טופס + רשימה + מחיקה)
 logs/
   activity.db                ← SQLite (auto-created, 90-day rotation, .gitignore'd)
+data/
+  whatsapp.db                ← SQLite (auto-created, .gitignore'd) — תבניות וואטסאפ, ללא rotation
 ```
 
 ## URLs
@@ -68,6 +78,10 @@ logs/
 | `/api/mislaka/transfer?id=...` | דף ניוד מוצר מסלקה |
 | `/har-habituach/` | הר הביטוח — העלאת אקסל |
 | `/admin/dashboard` | **Activity log dashboard** (basic auth) — חקירת בעיות, רשומות יתום, JS errors |
+| `/admin/whatsapp-templates` | **ניהול תבניות וואטסאפ** (basic auth) — טופס + רשימה + מחיקה |
+| `/api/whatsapp-templates/random` | (basic auth) **n8n קורא לכאן** — מחזיר תבנית רנדומלית פעילה |
+| `/api/whatsapp-templates` | GET (list) / POST (create) — basic auth |
+| `/api/whatsapp-templates/:id` | DELETE — soft delete (`is_active=0`), basic auth |
 | `/api/log/frontend` | קליטת telemetry מהדפדפן (iframe loads, JS errors) |
 | `/health` | Health check |
 
@@ -168,3 +182,23 @@ logs/
 **Rotation:** events ישנים מ-`LOG_RETENTION_DAYS` (ברירת מחדל 90) נמחקים אוטומטית פעם ביום (`setInterval` ב-server.js).
 
 **Orphan detection:** middleware מסמן `is_orphan=1` כשcreate הצליח (200) אבל חסר FK חיוני בפ-payload לפי טבלת `ORPHAN_RULES` ב-`middleware/activityLog.js`.
+
+## מערכת תבניות וואטסאפ (n8n)
+**הבעיה שזה פותר:** סנריו ב-n8n שולח הודעות וואטסאפ ללידים חדשים מהר הביטוח. צריך מאגר תבניות שאפשר לשלוף מהן רנדומלית, ועמוד אדמין לעדכן אותן בלי לגעת בקוד. החליף את ה-Make Data Store הקיים.
+
+**DB:** `data/whatsapp.db` (SQLite, נפרד מ-`logs/activity.db`, ללא rotation — דאטה לוגית).
+**טבלה:** `whatsapp_templates(id, name, body, is_active, created_at)`.
+
+**Endpoints:**
+- `GET /api/whatsapp-templates/random` — n8n קורא לכאן. מחזיר `{id, name, body}` מתבנית פעילה רנדומלית. מוחרג מ-activity log (תדירות גבוהה).
+- `GET /api/whatsapp-templates` — רשימת כל התבניות (לעמוד אדמין).
+- `POST /api/whatsapp-templates` — יצירה. body: `{name, body}`. validation: body לא ריק, מקסימום 4096 תווים.
+- `DELETE /api/whatsapp-templates/:id` — soft delete (`is_active=0`).
+
+**Auth:** כל ה-endpoints כולל `/random` מאחורי `basicAuth` משותף (`middleware/basicAuth.js`). n8n שולח header `Authorization: Basic <base64>`.
+
+**Placeholder convention:** התבניות מכילות `{שם}`. השרת מחזיר אותו גולמי — n8n מחליף ל-name של הליד לפני שליחה.
+
+**Seed אוטומטי:** בעלייה הראשונה של השרת, `scripts/seed-whatsapp-templates.js` מזריע 20 תבניות מ-`scripts/templates-seed.json`. Idempotent — לא רץ אם הטבלה לא ריקה. ל-reseed ידני: `node scripts/seed-whatsapp-templates.js --force` (יזריע נוספים, לא ימחק קיימים).
+
+**עמוד אדמין:** `https://api.otzma-ins.co.il/admin/whatsapp-templates` (basic auth) — טופס הוספה (name + body), רשימת תבניות פעילות, כפתור מחיקה.

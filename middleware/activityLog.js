@@ -5,6 +5,7 @@ const SKIP_PREFIXES = [
     "/admin/",
     "/api/admin/",
     "/api/log/frontend",
+    "/api/whatsapp-templates/random",
     "/styles.css",
     "/app.js",
     "/favicon.ico"

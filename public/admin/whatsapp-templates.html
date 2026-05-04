@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Otzma — תבניות וואטסאפ</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, "Segoe UI", "Heebo", Arial, sans-serif;
+            margin: 0;
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+        .header {
+            background: #1e293b;
+            padding: 14px 22px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #334155;
+        }
+        .header h1 { margin: 0; font-size: 18px; font-weight: 600; }
+        .header .stats { font-size: 13px; color: #94a3b8; }
+        .header .stats .num { color: #f1f5f9; font-weight: 600; margin-left: 4px; }
+
+        .container {
+            max-width: 980px;
+            margin: 0 auto;
+            padding: 24px 22px;
+        }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 0 0 12px 0;
+        }
+
+        .form-card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 18px;
+            margin-bottom: 28px;
+        }
+        .form-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+        .form-row label {
+            font-size: 13px;
+            color: #94a3b8;
+            font-weight: 500;
+        }
+        .form-row input, .form-row textarea {
+            background: #0f172a;
+            border: 1px solid #334155;
+            color: #e2e8f0;
+            padding: 9px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: inherit;
+            line-height: 1.5;
+        }
+        .form-row textarea {
+            min-height: 110px;
+            resize: vertical;
+        }
+        .form-row .hint {
+            font-size: 12px;
+            color: #64748b;
+        }
+        .form-row .hint code {
+            background: #0f172a;
+            padding: 2px 6px;
+            border-radius: 3px;
+            color: #fbbf24;
+            font-family: "Consolas", monospace;
+        }
+        .form-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        button {
+            background: #3b82f6;
+            border: none;
+            color: white;
+            padding: 8px 18px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            font-family: inherit;
+        }
+        button:hover { background: #2563eb; }
+        button.danger { background: #dc2626; padding: 5px 11px; font-size: 12px; }
+        button.danger:hover { background: #b91c1c; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .message {
+            font-size: 13px;
+            padding: 0;
+            min-height: 18px;
+        }
+        .message.success { color: #34d399; }
+        .message.error { color: #fb7185; }
+
+        .templates-list {
+            display: grid;
+            gap: 10px;
+        }
+        .template-card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 14px;
+        }
+        .template-meta {
+            font-size: 12px;
+            color: #64748b;
+            margin-bottom: 6px;
+            display: flex;
+            gap: 10px;
+        }
+        .template-meta .name {
+            color: #cbd5e1;
+            font-weight: 600;
+        }
+        .template-meta .id { color: #475569; }
+        .template-body {
+            white-space: pre-wrap;
+            font-size: 13px;
+            line-height: 1.6;
+            color: #e2e8f0;
+            font-family: -apple-system, "Segoe UI", "Heebo", Arial, sans-serif;
+        }
+        .template-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .empty {
+            text-align: center;
+            padding: 40px;
+            color: #64748b;
+        }
+        .loading {
+            text-align: center;
+            padding: 30px;
+            color: #94a3b8;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>📱 תבניות וואטסאפ — הר הביטוח</h1>
+        <div class="stats" id="stats">טוען...</div>
+    </div>
+
+    <div class="container">
+        <h2 class="section-title">הוספת תבנית חדשה</h2>
+        <div class="form-card">
+            <div class="form-row">
+                <label for="name">שם תבנית (אופציונלי)</label>
+                <input type="text" id="name" maxlength="100" placeholder="למשל: הזדמנות">
+            </div>
+            <div class="form-row">
+                <label for="body">תוכן ההודעה</label>
+                <textarea id="body" maxlength="4096" placeholder="תוכן ההודעה. השתמש ב-{שם} כדי לשבץ את שם הליד."></textarea>
+                <span class="hint">השתמש ב-<code>{שם}</code> כ-placeholder לשם הליד. ה-n8n יחליף את זה אוטומטית בשליחה.</span>
+            </div>
+            <div class="form-actions">
+                <button id="add-btn">הוסף תבנית</button>
+                <span class="message" id="form-message"></span>
+            </div>
+        </div>
+
+        <h2 class="section-title">תבניות קיימות</h2>
+        <div id="templates-container" class="loading">טוען תבניות...</div>
+    </div>
+
+    <script>
+        const $ = id => document.getElementById(id);
+
+        async function loadTemplates() {
+            const container = $("templates-container");
+            try {
+                const res = await fetch("/api/whatsapp-templates", { credentials: "same-origin" });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                renderStats(data.stats);
+                renderTemplates(data.templates || []);
+            } catch (err) {
+                container.className = "empty";
+                container.textContent = "שגיאה בטעינת תבניות: " + err.message;
+            }
+        }
+
+        function renderStats(stats) {
+            if (!stats) return;
+            $("stats").innerHTML = `
+                פעילות: <span class="num">${stats.active || 0}</span>
+                · סך הכל: <span class="num">${stats.total || 0}</span>
+            `;
+        }
+
+        function renderTemplates(templates) {
+            const container = $("templates-container");
+            const active = templates.filter(t => t.is_active);
+
+            if (active.length === 0) {
+                container.className = "empty";
+                container.textContent = "אין תבניות פעילות. הוסף את הראשונה בטופס למעלה.";
+                return;
+            }
+
+            container.className = "templates-list";
+            container.innerHTML = "";
+            active.forEach(t => {
+                const card = document.createElement("div");
+                card.className = "template-card";
+
+                const content = document.createElement("div");
+                content.className = "template-content";
+
+                const meta = document.createElement("div");
+                meta.className = "template-meta";
+                meta.innerHTML = `
+                    <span class="name">${escapeHtml(t.name || "ללא שם")}</span>
+                    <span class="id">#${t.id}</span>
+                `;
+
+                const body = document.createElement("div");
+                body.className = "template-body";
+                body.textContent = t.body;
+
+                content.appendChild(meta);
+                content.appendChild(body);
+
+                const delBtn = document.createElement("button");
+                delBtn.className = "danger";
+                delBtn.textContent = "מחק";
+                delBtn.onclick = () => deleteTemplate(t.id, t.name);
+
+                card.appendChild(content);
+                card.appendChild(delBtn);
+                container.appendChild(card);
+            });
+        }
+
+        async function addTemplate() {
+            const name = $("name").value.trim();
+            const body = $("body").value;
+            const btn = $("add-btn");
+            const msg = $("form-message");
+
+            msg.className = "message";
+            msg.textContent = "";
+
+            if (!body.trim()) {
+                msg.className = "message error";
+                msg.textContent = "תוכן ההודעה לא יכול להיות ריק";
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = "שומר...";
+
+            try {
+                const res = await fetch("/api/whatsapp-templates", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "same-origin",
+                    body: JSON.stringify({ name: name || null, body })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+                $("name").value = "";
+                $("body").value = "";
+                msg.className = "message success";
+                msg.textContent = "התבנית נוספה בהצלחה";
+                setTimeout(() => { msg.textContent = ""; }, 3000);
+
+                await loadTemplates();
+            } catch (err) {
+                msg.className = "message error";
+                msg.textContent = err.message;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "הוסף תבנית";
+            }
+        }
+
+        async function deleteTemplate(id, name) {
+            const label = name || `תבנית #${id}`;
+            if (!confirm(`למחוק את "${label}"?`)) return;
+
+            try {
+                const res = await fetch(`/api/whatsapp-templates/${id}`, {
+                    method: "DELETE",
+                    credentials: "same-origin"
+                });
+                if (!res.ok) {
+                    const data = await res.json().catch(() => ({}));
+                    throw new Error(data.error || `HTTP ${res.status}`);
+                }
+                await loadTemplates();
+            } catch (err) {
+                alert("שגיאה במחיקה: " + err.message);
+            }
+        }
+
+        function escapeHtml(s) {
+            return String(s).replace(/[&<>"']/g, c => ({
+                "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+            }[c]));
+        }
+
+        $("add-btn").addEventListener("click", addTemplate);
+        loadTemplates();
+    </script>
+</body>
+
+</html>
