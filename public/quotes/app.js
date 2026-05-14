@@ -2184,9 +2184,15 @@ async function simulateSave(btn) {
         // ולידציה כבר הציגה alert משלה (validateAllBeforeSave) — לא לכפול.
         // אחרת — שגיאת מערכת באמצע השמירה (לדוגמה /create/policy-insured נכשל
         // אחרי שכבר נוצרה פוליסה ב-CRM). חובה להציג למשתמש, אחרת נשארת
-        // פוליסה ב-CRM בלי מבוטחים, בלי שאף אחד יודע.
+        // פוליסה ב-CRM בלי מבוטחים, בלי שאף אחד יודע. גם רושמים לדשבורד.
         if (e?.message !== "validation failed") {
-            alert("❌ שגיאה בשמירה: " + (e?.message || "שגיאה לא ידועה"));
+            const msg = e?.message || "שגיאה לא ידועה";
+            sendFrontendEvent("save_error", {
+                error_message: msg,
+                error_stack: e?.stack || null,
+                payload: { stage: "simulateSave" }
+            });
+            alert("❌ שגיאה בשמירה: " + msg);
         }
 
     } finally {

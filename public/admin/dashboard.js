@@ -16,6 +16,7 @@ function statusBadge(status, eventType) {
     if (!status) {
         if (eventType === "iframe_loaded") return '<span class="badge badge-evt">loaded</span>';
         if (eventType === "frontend_error") return '<span class="badge badge-5xx">JS error</span>';
+        if (eventType === "save_error") return '<span class="badge badge-5xx">save error</span>';
         return '<span class="badge badge-evt">—</span>';
     }
     const cls = status >= 500 ? "badge-5xx" : status >= 400 ? "badge-4xx" : "badge-2xx";
@@ -24,6 +25,7 @@ function statusBadge(status, eventType) {
 
 function rowClass(e) {
     if (e.event_type === "frontend_error") return "row-frontend-error";
+    if (e.event_type === "save_error") return "row-save-error";
     if (e.is_orphan) return "row-orphan";
     if (e.is_validation_failure) return "row-validation";
     if (e.event_type === "iframe_loaded") return "row-iframe-loaded";
