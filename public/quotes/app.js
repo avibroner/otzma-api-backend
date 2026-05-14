@@ -2057,6 +2057,8 @@ function validateAllBeforeSave() {
 
         for (let card of insuranceCards) {
 
+            const isCancellation = card.dataset.cancellation === "true";
+
             if (!getInsuranceCompanyIdFromCard(card)) {
                 throw new Error("חובה לבחור חברה מבטחת בכל פוליסה");
             }
@@ -2069,7 +2071,9 @@ function validateAllBeforeSave() {
 
             const product = getInsuranceProductFromCard(card);
 
+            // משעבד — לא רלוונטי בביטול (השדה כלל לא קיים ב-DOM בכרטיס ביטול)
             if (
+                !isCancellation &&
                 product &&
                 (product.name === 'ריסק משכנתא' || product.name === 'ריסק משועבד')
             ) {
@@ -2078,6 +2082,25 @@ function validateAllBeforeSave() {
 
                 if (!pledgerValue) {
                     throw new Error("חובה לבחור משעבד בפוליסת ריסק משכנתא / משועבד");
+                }
+            }
+
+            // שדות חובה בביטול — נבדקים כאן כדי שה-alert יוצג למשתמש,
+            // ולא רק ב-saveInsurancePolicies (ששם הם זורקים בשקט אחרי יצירת הפוליסה)
+            if (isCancellation) {
+                const policyNumber = card.querySelector(".insurance_policy_number")?.value?.trim();
+                if (!policyNumber) {
+                    throw new Error("חסר מספר פוליסה בפוליסת ביטול");
+                }
+
+                const issueDateStr = card.querySelector(".insurance_issue_date")?.value?.trim();
+                if (!parseDDMMYYYY(issueDateStr)) {
+                    throw new Error("חסר תאריך הפקה תקין בפוליסת ביטול (DD-MM-YYYY)");
+                }
+
+                const cancelDateStr = card.querySelector(".insurance_cancel_date")?.value?.trim();
+                if (!parseDDMMYYYY(cancelDateStr)) {
+                    throw new Error("חסר תאריך ביטול תקין בפוליסת ביטול (DD-MM-YYYY)");
                 }
             }
 
@@ -2158,9 +2181,13 @@ async function simulateSave(btn) {
         console.warn("⛔ Save stopped:", e?.message);
         console.warn("⛔ stack:", e?.stack);
 
-        // ❌ אין alert כאן!
-        // אם זו שגיאת ולידציה – היא כבר הוצגה למשתמש
-        // אם זו שגיאת מערכת – היא כבר טופלה בפונקציה הרלוונטית
+        // ולידציה כבר הציגה alert משלה (validateAllBeforeSave) — לא לכפול.
+        // אחרת — שגיאת מערכת באמצע השמירה (לדוגמה /create/policy-insured נכשל
+        // אחרי שכבר נוצרה פוליסה ב-CRM). חובה להציג למשתמש, אחרת נשארת
+        // פוליסה ב-CRM בלי מבוטחים, בלי שאף אחד יודע.
+        if (e?.message !== "validation failed") {
+            alert("❌ שגיאה בשמירה: " + (e?.message || "שגיאה לא ידועה"));
+        }
 
     } finally {
         // מחזירים את הכפתור למצב עבודה
