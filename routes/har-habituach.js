@@ -218,7 +218,7 @@ router.post("/api/process-excel", upload.single("file"), async (req, res) => {
         // 7. Update premium summary
         send({ step: "webhook", message: "מעדכן סיכומי פרמיות..." });
         try {
-            await updatePremiumSummary(person);
+            await updatePremiumSummary(person, ownerId);
         } catch (err) {
             errors.push(`שגיאה בעדכון סיכומי פרמיות: ${err.message || "unknown"}`);
         }
